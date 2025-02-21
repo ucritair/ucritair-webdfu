@@ -221,20 +221,20 @@ var device = null;
         let connectButton = document.querySelector("#connect");
         let detachButton = document.querySelector("#detach");
         let downloadButton = document.querySelector("#download");
-        let uploadButton = document.querySelector("#upload");
+        // let uploadButton = document.querySelector("#upload");
         let statusDisplay = document.querySelector("#status");
         let infoDisplay = document.querySelector("#usbInfo");
         let dfuDisplay = document.querySelector("#dfuInfo");
-        let vidField = document.querySelector("#vid");
+        // let vidField = document.querySelector("#vid");
         let interfaceDialog = document.querySelector("#interfaceDialog");
         let interfaceForm = document.querySelector("#interfaceForm");
         let interfaceSelectButton = document.querySelector("#selectInterface");
 
         let searchParams = new URLSearchParams(window.location.search);
         let fromLandingPage = false;
-        let vid = 0;
+        let vid = 0x2fe3; // 0;
         // Set the vendor ID from the landing page URL
-        if (searchParams.has("vid")) {
+        /* if (searchParams.has("vid")) {
             const vidString = searchParams.get("vid");
             try {
                 if (vidString.toLowerCase().startsWith("0x")) {
@@ -247,7 +247,7 @@ var device = null;
             } catch (error) {
                 console.log("Bad VID " + vidString + ":" + error);
             }
-        }
+        } */
 
         // Grab the serial number from the landing page
         let serial = "";
@@ -262,8 +262,8 @@ var device = null;
 
         let configForm = document.querySelector("#configForm");
 
-        let transferSizeField = document.querySelector("#transferSize");
-        let transferSize = parseInt(transferSizeField.value);
+        // let transferSizeField = document.querySelector("#transferSize");
+        let transferSize = 128; // parseInt(transferSizeField.value);
 
         let dfuseStartAddressField = document.querySelector("#dfuseStartAddress");
         let dfuseUploadSizeField = document.querySelector("#dfuseUploadSize");
@@ -276,7 +276,7 @@ var device = null;
 
         let manifestationTolerant = true;
 
-        //let device;
+        // let device;
 
         function onDisconnect(reason) {
             if (reason) {
@@ -287,7 +287,7 @@ var device = null;
             infoDisplay.textContent = "";
             dfuDisplay.textContent = "";
             detachButton.disabled = true;
-            uploadButton.disabled = true;
+            // uploadButton.disabled = true;
             downloadButton.disabled = true;
             firmwareFileField.disabled = true;
         }
@@ -324,7 +324,7 @@ var device = null;
                 device.properties = desc;
                 let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
                 dfuDisplay.textContent += "\n" + info;
-                transferSizeField.value = desc.TransferSize;
+               	// transferSizeField.value = desc.TransferSize;
                 transferSize = desc.TransferSize;
                 if (desc.CanDnload) {
                     manifestationTolerant = desc.ManifestationTolerant;
@@ -332,7 +332,7 @@ var device = null;
 
                 if (device.settings.alternate.interfaceProtocol == 0x02) {
                     if (!desc.CanUpload) {
-                        uploadButton.disabled = true;
+                        // uploadButton.disabled = true;
                         dfuseUploadSizeField.disabled = true;
                     }
                     if (!desc.CanDnload) {
@@ -397,13 +397,13 @@ var device = null;
             if (device.settings.alternate.interfaceProtocol == 0x01) {
                 // Runtime
                 detachButton.disabled = false;
-                uploadButton.disabled = true;
+                // uploadButton.disabled = true;
                 downloadButton.disabled = true;
                 firmwareFileField.disabled = true;
             } else {
                 // DFU
                 detachButton.disabled = true;
-                uploadButton.disabled = false;
+                // uploadButton.disabled = false;
                 downloadButton.disabled = false;
                 firmwareFileField.disabled = false;
             }
@@ -456,20 +456,20 @@ var device = null;
                         } else {
                             statusDisplay.textContent = "Multiple DFU interfaces found.";
                         }
-                        vidField.value = "0x" + hex4(matching_devices[0].device_.vendorId).toUpperCase();
+                        //vidField.value = "0x" + hex4(matching_devices[0].device_.vendorId).toUpperCase();
                         vid = matching_devices[0].device_.vendorId;
                     }
                 }
             );
         }
 
-        vidField.addEventListener("change", function() {
+        /* vidField.addEventListener("change", function() {
             vid = parseInt(vidField.value, 16);
-        });
+        }); */
 
-        transferSizeField.addEventListener("change", function() {
+        /* transferSizeField.addEventListener("change", function() {
             transferSize = parseInt(transferSizeField.value);
-        });
+        }); */
 
         dfuseStartAddressField.addEventListener("change", function(event) {
             const field = event.target;
@@ -563,7 +563,7 @@ var device = null;
             }
         });
 
-        uploadButton.addEventListener('click', async function(event) {
+        /* uploadButton.addEventListener('click', async function(event) {
             event.preventDefault();
             event.stopPropagation();
             if (!configForm.checkValidity()) {
@@ -602,7 +602,7 @@ var device = null;
             }
 
             return false;
-        });
+        }); */
 
         firmwareFileField.addEventListener("change", function() {
             firmwareFile = null;
