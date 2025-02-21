@@ -6,9 +6,15 @@ body
 	font-family: helvetica;
 
 	text-align: left;
-	margin: 0.5in;
-	margin-top: 1in;
-	margin-right: 2in;
+	margin: auto;
+
+	max-width: 8in;
+}
+
+h1
+{
+	font-size: 36pt;
+	margin-bottom: 2pt;
 }
 
 h2
@@ -23,6 +29,11 @@ h3
 	margin-bottom: 2pt;
 }
 
+p
+{
+	font-size: 14pt;
+}
+
 .title
 {
 	font-size: 48pt;
@@ -35,7 +46,7 @@ h3
 .line
 {
   	height: 0;
-  	border: 2pt solid red;
+  	border: 2pt solid rgb(126, 126, 126);
 	border-radius: 2pt;
 	margin-bottom: 16pt;
 }
@@ -52,5 +63,54 @@ a:not(.title):hover
 {
 	font-size: 16pt;
 	color: black;
+}
+
+label, legend, fieldset
+{
+	font-size: 16pt;
+	font-weight: bold;
+	display: block;
+	margin-bottom: 2pt;
+}
+
+textarea, select, input[type]
+{
+	color: #000000;
+	padding: 4px 6px;
+	background-color: #e5e5e5;
+	border: 1px solid #e5e5e5;
+	border-radius: 0px;
+	box-shadow: none;
+	box-sizing: border-box;
+	margin-bottom: 12px;
+}
+textarea:focus, select:focus, input[type]:focus
+{
+	border: 1px solid #808080;
+	outline: 0;
+}
+
+.button, button, input[type="submit"], input[type="reset"], input[type="button"]
+{
+	display: inline-block;
+	padding: 4px 6px;
+	text-align: center;
+	white-space: nowrap;
+	background-color: #ffffff;
+	color: #000000;
+	border-radius: 1px;
+	border: 1px solid #000000;
+}
+.button[disabled], button[disabled], input[type="submit"][disabled], input[type="reset"][disabled], input[type="button"][disabled]
+{
+	cursor: default;
+	opacity: .5;
+}
+.button:focus, .button:hover, button:focus, button:hover, input[type="submit"]:focus, input[type="submit"]:hover, input[type="reset"]:focus, input[type="reset"]:hover, input[type="button"]:focus, input[type="button"]:hover
+{
+	background-color: #000000;
+	border-color: #000000;
+	color: #ffffff;
+	outline: 0;
 }
 
