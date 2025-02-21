@@ -1,0 +1,56 @@
+body
+{
+	background-color: white;
+	color: black;
+
+	font-family: helvetica;
+
+	text-align: left;
+	margin: 0.5in;
+	margin-top: 1in;
+	margin-right: 2in;
+}
+
+h2
+{
+	font-size: 24pt;
+	margin-bottom: 2pt;
+}
+
+h3
+{
+	font-size: 16pt;
+	margin-bottom: 2pt;
+}
+
+.title
+{
+	font-size: 48pt;
+	font-weight: bold;
+	text-decoration: none;
+	color: black;
+	margin-bottom: 8pt;
+}
+
+.line
+{
+  	height: 0;
+  	border: 2pt solid red;
+	border-radius: 2pt;
+	margin-bottom: 16pt;
+}
+
+a
+{
+	font-size: 14pt;
+	color: rgb(92, 92, 92);
+	text-decoration: none;
+	line-height: 16pt;
+}
+
+a:not(.title):hover
+{
+	font-size: 16pt;
+	color: black;
+}
+
