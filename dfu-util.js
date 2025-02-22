@@ -268,8 +268,17 @@ var device = null;
         let dfuseStartAddressField = document.querySelector("#dfuseStartAddress");
         let dfuseUploadSizeField = document.querySelector("#dfuseUploadSize");
 
-        let firmwareFileField = document.querySelector("#firmwareFile");
+        // let firmwareFileField = document.querySelector("#firmwareFile");
         let firmwareFile = null;
+		let firmwareReader = new FileReader();
+		firmwareReader.onloadend = function() {
+			firmwareFile = firmwareReader.result;
+		};
+		fetch("zephyr.signed.bin")
+		.then((resp) => resp.blob())
+		.then((blob) => {
+			firmwareReader.readAsArrayBuffer(blob);
+		});
 
         let downloadLog = document.querySelector("#downloadLog");
         let uploadLog = document.querySelector("#uploadLog");
@@ -286,10 +295,10 @@ var device = null;
             connectButton.textContent = "Connect";
             infoDisplay.textContent = "";
             dfuDisplay.textContent = "";
-            detachButton.disabled = true;
+            // detachButton.disabled = true;
             // uploadButton.disabled = true;
             downloadButton.disabled = true;
-            firmwareFileField.disabled = true;
+            // firmwareFileField.disabled = true;
         }
 
         function onUnexpectedDisconnect(event) {
@@ -336,7 +345,7 @@ var device = null;
                         dfuseUploadSizeField.disabled = true;
                     }
                     if (!desc.CanDnload) {
-                        dnloadButton.disabled = true;
+                        downloadButton.disabled = true;
                     }
                 }
 
@@ -396,16 +405,16 @@ var device = null;
             // Update buttons based on capabilities
             if (device.settings.alternate.interfaceProtocol == 0x01) {
                 // Runtime
-                detachButton.disabled = false;
+                // detachButton.disabled = false;
                 // uploadButton.disabled = true;
                 downloadButton.disabled = true;
-                firmwareFileField.disabled = true;
+                // firmwareFileField.disabled = true;
             } else {
                 // DFU
-                detachButton.disabled = true;
+                // detachButton.disabled = true;
                 // uploadButton.disabled = false;
                 downloadButton.disabled = false;
-                firmwareFileField.disabled = false;
+                // firmwareFileField.disabled = false;
             }
 
             if (device.memoryInfo) {
@@ -427,7 +436,7 @@ var device = null;
                 dfuseStartAddressField.disabled = true;
                 dfuseUploadSizeField.disabled = true;
             }
-
+			
             return device;
         }
 
@@ -456,7 +465,7 @@ var device = null;
                         } else {
                             statusDisplay.textContent = "Multiple DFU interfaces found.";
                         }
-                        //vidField.value = "0x" + hex4(matching_devices[0].device_.vendorId).toUpperCase();
+                        // vidField.value = "0x" + hex4(matching_devices[0].device_.vendorId).toUpperCase();
                         vid = matching_devices[0].device_.vendorId;
                     }
                 }
@@ -534,7 +543,7 @@ var device = null;
             }
         });
 
-        detachButton.addEventListener('click', function() {
+       /* detachButton.addEventListener('click', function() {
             if (device) {
                 device.detach().then(
                     async len => {
@@ -561,7 +570,7 @@ var device = null;
                     }
                 );
             }
-        });
+        }); */
 
         /* uploadButton.addEventListener('click', async function(event) {
             event.preventDefault();
@@ -604,7 +613,7 @@ var device = null;
             return false;
         }); */
 
-        firmwareFileField.addEventListener("change", function() {
+        /* firmwareFileField.addEventListener("change", function() {
             firmwareFile = null;
             if (firmwareFileField.files.length > 0) {
                 let file = firmwareFileField.files[0];
@@ -614,7 +623,7 @@ var device = null;
                 };
                 reader.readAsArrayBuffer(file);
             }
-        });
+        }); */
 
         downloadButton.addEventListener('click', async function(event) {
             event.preventDefault();
