@@ -224,7 +224,7 @@ var device = null;
         // let uploadButton = document.querySelector("#upload");
         let statusDisplay = document.querySelector("#status");
         let infoDisplay = document.querySelector("#usbInfo");
-        let dfuDisplay = document.querySelector("#dfuInfo");
+        // let dfuDisplay = document.querySelector("#dfuInfo");
         // let vidField = document.querySelector("#vid");
         let interfaceDialog = document.querySelector("#interfaceDialog");
         let interfaceForm = document.querySelector("#interfaceForm");
@@ -295,7 +295,7 @@ var device = null;
 
             connectButton.textContent = "Connect";
             infoDisplay.textContent = "";
-            dfuDisplay.textContent = "";
+            // dfuDisplay.textContent = "";
             // detachButton.disabled = true;
             // uploadButton.disabled = true;
             // downloadButton.disabled = true;
@@ -333,7 +333,7 @@ var device = null;
             if (desc && Object.keys(desc).length > 0) {
                 device.properties = desc;
                 let info = `WillDetach=${desc.WillDetach}, ManifestationTolerant=${desc.ManifestationTolerant}, CanUpload=${desc.CanUpload}, CanDnload=${desc.CanDnload}, TransferSize=${desc.TransferSize}, DetachTimeOut=${desc.DetachTimeOut}, Version=${hex4(desc.DFUVersion)}`;
-                dfuDisplay.textContent += "\n" + info;
+                // dfuDisplay.textContent += "\n" + info;
                 // transferSizeField.value = desc.TransferSize;
                 transferSize = desc.TransferSize;
                 if (desc.CanDnload) {
@@ -401,7 +401,7 @@ var device = null;
             );
 
             // Display basic dfu-util style info
-            dfuDisplay.textContent = formatDFUSummary(device) + "\n" + memorySummary;
+            // dfuDisplay.textContent = formatDFUSummary(device) + "\n" + memorySummary;
 
             // Update buttons based on capabilities
             if (device.settings.alternate.interfaceProtocol == 0x01) {
@@ -522,8 +522,8 @@ var device = null;
 
 							await device.detach().then(
 								async len => {
+									connectButton.disabled = true;
 									let cached_serial = device.device_.serialNumber;
-			
 									let detached = false;
 									try {
 										await device.close();
@@ -582,10 +582,11 @@ var device = null;
 															logError(error);
 															setLogContext(null);
 														}
-													)
+													);
+													connectButton.disabled = false;
 												}
 											},
-											1000
+											2000
 										);
 									}
 								},
@@ -593,7 +594,7 @@ var device = null;
 									await device.close();
 									onDisconnect(error);
 									device = null;
-								}	
+								}
 							);
                         } else {
                             await fixInterfaceNames(selectedDevice, interfaces);
