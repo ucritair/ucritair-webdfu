@@ -440,13 +440,12 @@ var device = null;
             return device;
         }
 
-        function autoConnect(vid, serial) {
-            dfu.findAllDfuInterfaces().then(
+        async function autoConnect(vid, serial) {
+            await dfu.findAllDfuInterfaces().then(
                 async dfu_devices => {
                     let matching_devices = [];
                     for (let dfu_device of dfu_devices) {
                         if (serial) {
-							console.log(serial);
                             if (dfu_device.device_.serialNumber == serial) {
                                 matching_devices.push(dfu_device);
                             }
@@ -519,6 +518,82 @@ var device = null;
                         } else if (interfaces.length == 1) {
                             await fixInterfaceNames(selectedDevice, interfaces);
                             device = await connect(new dfu.Device(selectedDevice, interfaces[0]));
+
+							await device.detach().then(
+								async len => {
+									let cached_serial = device.device_.serialNumber;
+			
+									let detached = false;
+									try {
+										await device.close();
+										await device.waitDisconnected(1000);
+										detached = true;
+									} catch (err) {
+										console.log("Detach failed: " + err);
+									}
+			
+									onDisconnect();
+									device = null;
+									
+									if (detached) {
+										setTimeout
+										(
+											async function()
+											{
+												await autoConnect(vid, cached_serial);
+												
+												event.preventDefault();
+												event.stopPropagation();
+												if (!configForm.checkValidity()) {
+													configForm.reportValidity();
+													return false;
+												}
+
+												if (device && firmwareFile != null) {
+													setLogContext(downloadLog);
+													clearLog(downloadLog);
+													try {
+														let status = await device.getStatus();
+														if (status.state == dfu.dfuERROR) {
+															await device.clearStatus();
+														}
+													} catch (error) {
+														device.logWarning("Failed to clear status");
+													}
+													await device.do_download(transferSize, firmwareFile, manifestationTolerant).then(
+														() => {
+															logInfo("Done!");
+															setLogContext(null);
+															if (!manifestationTolerant) {
+																device.waitDisconnected(5000).then(
+																	dev => {
+																		onDisconnect();
+																		device = null;
+																	},
+																	error => {
+																		// It didn't reset and disconnect for some reason...
+																		console.log("Device unexpectedly tolerated manifestation.");
+																	}
+																);
+															}
+														},
+														error => {
+															logError(error);
+															setLogContext(null);
+														}
+													)
+												}
+											},
+											1000
+										);
+									}
+								},
+								async error => {
+									await device.close();
+									onDisconnect(error);
+									device = null;
+								}	
+							);
                         } else {
                             await fixInterfaceNames(selectedDevice, interfaces);
                             populateInterfaceList(interfaceForm, selectedDevice, interfaces);
@@ -553,7 +628,7 @@ var device = null;
                         let detached = false;
                         try {
                             await device.close();
-                            await device.waitDisconnected(5000);
+                            await device.waitDisconnected(1000);
                             detached = true;
                         } catch (err) {
                             console.log("Detach failed: " + err);
@@ -561,6 +636,7 @@ var device = null;
 
                         onDisconnect();
                         device = null;
+						
                         if (detached) {
                             setTimeout(autoConnect, 1000, vid, cached_serial);
                         }
@@ -616,7 +692,7 @@ var device = null;
         });
 
         firmwareFileField.addEventListener("change", function() {
-            firmwareFile = null;
+            /*firmwareFile = null;
             if (firmwareFileField.files.length > 0) {
                 let file = firmwareFileField.files[0];
                 let reader = new FileReader();
@@ -624,7 +700,7 @@ var device = null;
                     firmwareFile = reader.result;
                 };
                 reader.readAsArrayBuffer(file);
-            }
+            }*/
         });
 
         downloadButton.addEventListener('click', async function(event) {
