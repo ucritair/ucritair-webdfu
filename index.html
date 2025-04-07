@@ -27,7 +27,7 @@
     <p>
       <span id="status"></span>
     </p>
-    <p>
+    <!-- <p>
       <label for="vid">Vendor ID (hex):</label>
       <input list="vendor_ids" type="text" name="vid" id="vid" maxlength="6" size="8" pattern="0x[A-Fa-f0-9]{1,4}"/>
       <datalist id="vendor_ids">
@@ -35,7 +35,7 @@
         <option value="0x0D28">mbed DAPLink</option>
         <option value="0x1EAF">LeafLabs Maple/stm32duino bootloader</option>
       </datalist>
-    </p>
+    </p> -->
     <p>
       <button id="connect">Connect</button>
     </p>
@@ -49,14 +49,14 @@
       <div id="usbInfo" style="white-space: pre"></div>
       <div id="dfuInfo" style="white-space: pre"></div>
     </p>
-    <fieldset>
+    <!-- <fieldset>
       <legend>Runtime mode</legend>
       <button id="detach" disabled="true">Detach DFU</button>
-    </fieldset>
+    </fieldset> -->
     <fieldset>
       <form id="configForm">
-        <label for="transferSize">Transfer Size:</label>
-        <input type="number" name="transferSize" id="transferSize" value="1024"/>
+        <!-- <label for="transferSize">Transfer Size:</label>
+        <input type="number" name="transferSize" id="transferSize" value="1024"/> -->
         <div id="dfuseFields" hidden="true">
           <label for="dfuseStartAddress">DfuSe Start Address:</label>
           <input type="text" name="dfuseStartAddress" id="dfuseStartAddress" title="Initial memory address to read/write from (hex)" size="10" pattern="0x[A-Fa-f0-9]+"/>
@@ -67,21 +67,21 @@
         <legend>DFU mode</legend>
         <fieldset>
           <legend>Firmware Download (write to USB device)</legend>
-          <p>
+          <!-- <p>
             <input type="file" id="firmwareFile" name="file" disabled="true"/>
           </p>
           <p>
             <button id="download" disabled="true">Download</button>
-          </p>
+          </p> -->
           <div class="log" id="downloadLog"></div>
         </fieldset>
-        <fieldset>
+        <!-- <fieldset>
           <legend>Firmware Upload (read from USB device)</legend>
           <p>
             <button id="upload" disabled="true">Upload</button>
           </p>
           <div class="log" id="uploadLog"></div>
-        </fieldset>
+        </fieldset> -->
       </form>
     </fieldset>
   </body>
