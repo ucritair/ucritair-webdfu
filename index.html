@@ -5,7 +5,6 @@
     <title>μCritAir WebDFU</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <!-- Theme & typography -->
     <link rel="stylesheet" href="sakura.css" />
 
     <style>
@@ -20,14 +19,23 @@
       body {
         background: var(--ucritter-bg);
         color: var(--ucritter-text);
-        max-width: 75rem;
-        width: 90%;
-        margin: 0 auto;
-        padding: 1rem 2rem 4rem;
+        max-width: none; /* Explicitly override sakura.css max-width */
+        width: auto; /* Let body flow naturally */
+        margin: 0; /* Remove auto horizontal margins */
+        padding: 1rem 1.5rem 3rem; /* Adjusted padding for full width */
         font-family: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
       }
 
       a { color: var(--ucritter-primary); }
+      a:hover { border-bottom-color: var(--ucritter-primary); color: var(--ucritter-primary); }
+
+      /* Container for centering specific sections if needed later */
+      .content-container {
+          max-width: 75rem; /* Reintroduce max-width for specific content blocks */
+          width: 90%;
+          margin: 0 auto; /* Center the container */
+      }
+
 
       /* ---------- hero ---------- */
       .hero {
@@ -48,6 +56,11 @@
         background: #fafafa;
         padding: 2rem 1.5rem;
         margin-bottom: 2.5rem;
+        max-width: 75rem;
+        width: 90%; /* Use percentage for responsiveness */
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box; /* Include padding in width */
       }
       #flashSection h2 {
         margin-top: 0;
@@ -68,6 +81,12 @@
       button#connect:disabled{ opacity: 0.5;  cursor: not-allowed; }
 
       #usbInfo { white-space: pre-wrap; font-size: 0.9rem; margin-top: 1rem; }
+      .log { font-size: 0.9rem; max-height: 150px; overflow-y: auto; background: #eee; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem;}
+      .log p { margin: 0.25rem 0; }
+      .log p.error { color: #d32f2f; font-weight: bold; }
+      .log p.warning { color: #ffa000; }
+      .log progress { width: 100%; }
+
 
       fieldset {
         border: 1px solid #ddd;
@@ -82,24 +101,33 @@
         border-left: 4px solid var(--ucritter-accent);
         background: #fffefc;
         padding: 1.25rem 1.5rem;
+        margin-top: 1.5rem;
+        max-width: 75rem;
+        width: 90%; /* Use percentage for responsiveness */
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box; /* Include padding in width */
       }
-      .warning {
-        color: #d32f2f;
-        font-weight: 700;
-        font-size: 1.1rem;
-      }
+      .instructions h2 { margin-top: 0; }
+      .instructions h3 { font-size: 1.2em; color: var(--ucritter-primary); margin-top: 1.5rem; }
 
       /* ---------- OS toggle ---------- */
-      .os-toggle { text-align: center; margin: 1rem 0; }
+      .os-toggle {
+          text-align: center;
+          margin: 1rem auto 1.5rem; /* Center the toggle itself */
+          max-width: 75rem;
+          width: 90%;
+        }
       .os-btn {
         background: none;
         border: 2px solid var(--ucritter-primary);
         color: var(--ucritter-primary);
         padding: 0.4rem 1rem;
-        margin: 0 0.25rem;
+        margin: 0.25rem 0.25rem; /* Add vertical margin for wrapping */
         border-radius: 6px;
         cursor: pointer;
-        transition: background 0.2s ease;
+        transition: background 0.2s ease, color 0.2s ease;
+        font-size: 0.95rem;
       }
       .os-btn.active,
       .os-btn:hover { background: var(--ucritter-primary); color: #fff; }
@@ -110,11 +138,15 @@
         border: 2px solid var(--ucritter-primary);
         padding: 1.5rem 1.25rem;
         border-radius: 8px;
-        margin: 1.5rem 0 2rem;
+        max-width: 75rem;
+        width: 90%; /* Use percentage for responsiveness */
+        margin: 1.5rem auto 2rem;
         text-align: center;
-        font-size: 1.25rem;
+        font-size: 1.15rem;
         font-weight: 600;
+        box-sizing: border-box; /* Include padding in width */
       }
+      #browserNotice p { margin: 0.5rem 0; }
       #browserNotice .download-btn {
         display: inline-block;
         margin-top: 0.75rem;
@@ -124,19 +156,35 @@
         border-radius: 6px;
         text-decoration: none;
         font-size: 1rem;
+        transition: opacity 0.2s ease;
       }
+       #browserNotice .download-btn:hover { opacity: 0.9; }
 
       /* ---------- inline kbd ---------- */
       kbd {
         background: #eee;
         border: 1px solid #ccc;
         border-radius: 3px;
-        padding: 0 0.25rem;
+        padding: 0.1em 0.4em;
         font-size: 0.9em;
+        font-family: monospace;
+        box-shadow: 1px 1px 1px rgba(0,0,0,0.1);
+      }
+      code { font-family: monospace; background-color: #f0f0f0; padding: 0.1em 0.3em; border-radius: 3px;}
+      pre { background-color: #f0f0f0; padding: 1em; border-radius: 4px; overflow-x: auto; }
+      pre code { background: none; padding: 0; }
+
+      /* ---------- Footer ---------- */
+      footer {
+          max-width: 75rem;
+          width: 90%;
+          margin: 3rem auto 0;
+          text-align: center;
+          font-size: 0.9rem;
+          color: #777;
       }
     </style>
 
-    <!-- DFU helper libs -->
     <script src="dfu.js"></script>
     <script src="dfuse.js"></script>
     <script src="FileSaver.js"></script>
@@ -147,182 +195,280 @@
       // Browser + OS detection helpers
       // --------------------------------------------------
       const ua             = navigator.userAgent;
-      const isChromeDesk   = /Chrome\//.test(ua) && !/OPR|Edg\//.test(ua) && !/(Android|iPhone|iPad|Mobile)/i.test(ua);
+      // Include Edge Chromium detection
+      const isChromeDesk   = /Chrome\//.test(ua) && !/OPR\//.test(ua) && !/(Android|iPhone|iPad|Mobile)/i.test(ua);
+      const isEdgeChromium = /Edg\//.test(ua) && !/(Android|iPhone|iPad|Mobile)/i.test(ua);
+      const isWebUsbSupported = isChromeDesk || isEdgeChromium;
+
+      // Default to 'mac' if detection fails or is ambiguous
       let   detectedOS     = /Win/.test(ua) ? "win" : /Linux/.test(ua) ? "linux" : "mac";
 
       document.addEventListener("DOMContentLoaded", () => {
-        // ---- Show notice if not on Chrome desktop ----
-        if (!isChromeDesk) {
-          const notice = document.createElement("div");
-          notice.id    = "browserNotice";
+        // ---- Show notice if WebUSB is not supported ----
+        if (!isWebUsbSupported) {
+          const notice = document.getElementById("browserNotice") || document.createElement("div");
+          notice.id    = "browserNotice"; // Ensure ID is set if created
           notice.innerHTML = `
-            <p><strong>You need Google Chrome on a desktop/laptop</strong></p>
-            <p>WebUSB only works in Chrome on desktop for now.</p>
-            <a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Download Chrome</a>`;
-          document.body.prepend(notice);
-          document.getElementById("connect").disabled = true;
+            <p><strong>Please use Google Chrome or Microsoft Edge on a desktop computer (Windows, macOS, Linux) for WebUSB flashing.</strong></p>
+            <p>Other browsers do not currently support the required WebUSB feature.</p>
+            <a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Download Chrome</a>
+            <a class="download-btn" href="https://www.microsoft.com/edge" target="_blank" rel="noopener" style="margin-left: 10px;">Download Edge</a>`;
+
+          // Prepend only if it wasn't already in the DOM
+          if (!document.getElementById("browserNotice")) {
+              document.body.prepend(notice);
+          } else {
+             // Ensure it's visible if it was hidden
+             notice.hidden = false;
+          }
+
+          const connectBtn = document.getElementById("connect");
+          if (connectBtn) {
+              connectBtn.disabled = true;
+          }
+           // Hide sections that require WebUSB
+           const flashSection = document.getElementById("flashSection");
+           if (flashSection) flashSection.hidden = true;
+           const osToggle = document.querySelector(".os-toggle");
+           if (osToggle) osToggle.hidden = true;
+           const instructions = document.querySelectorAll(".instructions");
+           instructions.forEach(inst => inst.hidden = true);
+
+
+        } else {
+            // Ensure notice is hidden if WebUSB is supported
+            const notice = document.getElementById("browserNotice");
+            if (notice) notice.hidden = true; // Hide notice if it exists from HTML
         }
 
-        // ---- Highlight & reveal OS instructions ----
-        switchOS(detectedOS);
-        document.querySelector(`.os-btn[data-os="${detectedOS}"]`).classList.add("active");
 
-        document.querySelectorAll('.os-btn').forEach(btn =>
-          btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.os-btn').forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
-            switchOS(e.target.dataset.os);
-          })
-        );
+        // ---- Highlight & reveal OS instructions ----
+        const osButtons = document.querySelectorAll('.os-btn');
+        const osSections = document.querySelectorAll('[data-ins]');
+
+        // Function to switch OS view
+        function switchOS(os) {
+          osSections.forEach(sec => {
+            sec.hidden = sec.dataset.ins !== os;
+          });
+          osButtons.forEach(btn => {
+            if (btn.dataset.os === os) {
+              btn.classList.add('active');
+            } else {
+              btn.classList.remove('active');
+            }
+          });
+          // Update the detectedOS in case the user manually switches
+          detectedOS = os;
+        }
+
+        // Initial setup based on detected OS (only if WebUSB is supported)
+        if (isWebUsbSupported) {
+            switchOS(detectedOS);
+            // Add click listeners to buttons
+            osButtons.forEach(btn => {
+              btn.addEventListener('click', (e) => {
+                switchOS(e.target.dataset.os);
+              });
+            });
+        }
       });
 
-      function switchOS(os) {
-        document.querySelectorAll('[data-ins]').forEach(sec => (sec.hidden = true));
-        const current = document.querySelector(`[data-ins="${os}"]`);
-        if (current) current.hidden = false;
-      }
     </script>
   </head>
 
   <body>
-    <!-- ================================================= -->
-    <!-- HERO                                               -->
-    <!-- ================================================= -->
+    <div id="browserNotice" hidden></div>
+
     <header class="hero">
       <h1>μCritAir Web Firmware Updater</h1>
-      <p class="tagline">Flash your μCritter straight from Chrome — no installer required.</p>
+      <p class="tagline">Flash your μCritter straight from your browser — no installer required.</p>
     </header>
 
-    <!-- ================================================= -->
-    <!-- FLASH UI                                           -->
-    <!-- ================================================= -->
-    <section id="flashSection" class="box">
+    <section id="flashSection">
       <h2>Flash your device</h2>
       <p style="text-align: center;">
-        <button id="connect">Connect</button>
+        <button id="connect">Connect & Flash Firmware</button>
         <span id="status" style="margin-left: 0.75rem"></span>
       </p>
 
-      <!-- multi‑interface dialog -->
       <dialog id="interfaceDialog">
-        Your device exposes multiple DFU interfaces.
+        <p>Your device exposes multiple DFU interfaces. Please select one:</p>
         <form id="interfaceForm" method="dialog">
-          <button id="selectInterface" type="submit">Select interface</button>
+          <button id="selectInterface" type="submit">Select Interface</button>
+          <button type="button" onclick="this.closest('dialog').close('cancelled')">Cancel</button>
         </form>
       </dialog>
 
-      <!-- USB & DFU info log -->
       <div id="usbInfo"></div>
 
-      <!-- DFU controls -->
       <fieldset>
-        <legend>DFU mode</legend>
+        <legend>Device Firmware Update (DFU)</legend>
         <form id="configForm">
           <div id="dfuseFields" hidden>
             <label>
               DfuSe Start Address:
-              <input type="text" id="dfuseStartAddress" size="10" pattern="0x[A-Fa-f0-9]+" />
+              <input type="text" id="dfuseStartAddress" size="10" pattern="0x[A-Fa-f0-9]+" placeholder="e.g., 0x08000000" />
             </label>
             <label>
-              DfuSe Upload Size:
-              <input type="number" id="dfuseUploadSize" min="1" />
+              DfuSe Upload Size (for reading firmware):
+              <input type="number" id="dfuseUploadSize" min="1" placeholder="Bytes" />
             </label>
           </div>
 
           <fieldset>
-            <legend>Firmware Download (write to device)</legend>
-            <div class="log" id="downloadLog"></div>
+            <legend>Flashing Progress</legend>
+            <div class="log" id="downloadLog">Ready to flash firmware...</div>
           </fieldset>
         </form>
       </fieldset>
     </section>
 
-    <!-- ================================================= -->
-    <!-- OS TOGGLE                                          -->
-    <!-- ================================================= -->
     <div class="os-toggle">
-      <span>Select your OS:</span>
+      <span>Show instructions for:</span>
       <button class="os-btn" data-os="mac">macOS</button>
       <button class="os-btn" data-os="win">Windows</button>
       <button class="os-btn" data-os="linux">Linux</button>
     </div>
 
-    <!-- ================================================= -->
-    <!-- INSTRUCTIONS                                       -->
-    <!-- ================================================= -->
-    <section class="instructions" data-ins="mac">
-      <h2>Put the μCritter into DFU mode</h2>
-      <p>You should see the <strong>DFU Bootloader</strong> menu after one of these actions:</p>
-      <ul>
-        <li>
-          <strong>Hardware reset:</strong>
-          Insert a paperclip into the reset hole above the speaker <em>while holding</em>
-          <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>.
-        </li>
-        <li>
-          <strong>From the menu:</strong>
-          Menu → Power → Sleep, then wake the device holding
-          <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>.
-        </li>
-        <li>
-          <strong>If already asleep:</strong>
-          Wake the device while holding <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>.
-        </li>
-      </ul>
+    <section class="instructions">
+        <h2>1. Put the μCritter into DFU Bootloader Mode</h2>
+        <p>You need to put your μCritter into a special mode to accept new firmware. You should see the <strong>DFU Bootloader</strong> screen appear on the device after doing one of the following:</p>
+        <ul>
+          <li>
+            <strong>Hardware reset method:</strong> Gently insert a paperclip into the small reset hole above the speaker <em>while simultaneously holding down</em> the <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd> buttons. Release the reset pin first, then the buttons.
+          </li>
+          <li>
+            <strong>Menu method:</strong> Navigate to Menu → Power → Sleep. Then, wake the device by pressing any button <em>while holding down</em> <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>.
+          </li>
+          <li>
+            <strong>Wake from sleep method:</strong> If your device is already asleep, simply wake it by pressing any button <em>while holding down</em> <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>.
+          </li>
+        </ul>
+        <p>Once in DFU mode, connect the μCritter to your computer using a USB cable.</p>
+    </section>
 
-      <h2>macOS flashing workflow</h2>
+
+    <section class="instructions" data-ins="mac" hidden>
+      <h2>2. macOS Flashing Workflow</h2>
+      <p>On macOS, the device needs to be authorized twice due to the two-stage bootloader (MCUBOOT).</p>
       <ol>
-        <li>Click <em>Connect</em>; choose the <code>MCUBOOT</code> device and press <strong>Connect</strong>.</li>
-        <li>The page shows “device disconnected / No device found.” Stage 1 rebooted into Stage 2 DFU.</li>
+        <li>With the μCritter in DFU mode and connected, click the <strong>Connect & Flash Firmware</strong> button above.</li>
+        <li>A browser pop-up will appear. Select the device named <code>MCUBOOT</code> and click <strong>Connect</strong>.</li>
+        <li>The status might briefly show "Device disconnected" or "No device found." This is normal. The first stage has rebooted the device into the second DFU stage.</li>
         <li>
-          <strong>Refresh</strong>, click <em>Connect</em> again, pick <code>MCUBOOT</code> (Stage 2). A temporary
-          <code>STALL</code> error may appear.
+            Wait a few seconds, then <strong>Refresh this web page</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>).
         </li>
+         <li>Click <strong>Connect & Flash Firmware</strong> again. Select the <code>MCUBOOT</code> device in the pop-up once more.</li>
+         <li>A temporary <code>STALL</code> error might appear in the log. Wait a moment.</li>
         <li>
-          <strong>Refresh once more</strong>. Both MCUBOOT stages are authorised; Connect now works and you can
-          flash firmware.
+          <strong>Refresh the web page one last time</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>). Now both stages of the bootloader should be authorized by your browser.
         </li>
+         <li>Click <strong>Connect & Flash Firmware</strong>. This time, it should connect successfully, and the firmware flashing process will begin automatically. Follow the progress in the "Flashing Progress" log area.</li>
         <li>
-          Verify by clicking Chrome’s site‑permissions icon (two stacked circles) — you should see
-          <em>two</em> MCUBOOT USB devices.
+          <strong>Verification (Optional):</strong> Click the site permissions icon (often looks like puzzle piece or sliders) in Chrome's address bar. Under USB Devices, you should see permissions granted for <em>two</em> `MCUBOOT` devices.
         </li>
       </ol>
+       <p>Once flashing is complete, the μCritter should automatically reboot with the new firmware.</p>
     </section>
 
     <section class="instructions" data-ins="win" hidden>
-      <h2>Windows setup</h2>
-      <p class="warning">
-        Detailed Windows steps coming soon. DFU‑mode entry is the same as above; use the double‑refresh pattern
-        for now.
-      </p>
-    </section>
-
-    <section class="instructions" data-ins="linux">
-      <h2>Linux setup (udev rules required)</h2>
-      <p>Web flashing works on Linux once Chrome is granted USB access via a custom <code>udev</code> rule:</p>
+      <h2>2. Windows Setup (Requires WinUSB Driver)</h2>
+      <p>Web-based flashing on Windows requires a one-time setup to install the correct USB driver (WinUSB) for the μCritter when it's in DFU mode. We recommend using the Zadig tool for this.</p>
       <ol>
-        <li>Open a terminal and create the rule file:
-          <pre><code>sudo nano /etc/udev/rules.d/51-mcuboot.rules</code></pre>
+        <li>
+            <strong>Download Zadig:</strong> Go to <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">https://zadig.akeo.ie/</a> and download the latest version of Zadig. It's a standalone executable, no installation needed.
         </li>
-        <li>Paste this single line and save:
-          <pre><code>SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"</code></pre>
+        <li>
+            <strong>Ensure μCritter is in DFU Mode:</strong> Follow the steps in section 1 above to put your μCritter into DFU Bootloader mode and connect it to your PC via USB.
         </li>
-        <li>Reload rules:
-          <pre><code>sudo udevadm control --reload-rules</code></pre>
+        <li>
+            <strong>Run Zadig:</strong> Open the downloaded Zadig application. You may need administrator privileges.
         </li>
-        <li>Unplug and re‑plug the μCritter.</li>
+        <li>
+            <strong>List All Devices:</strong> In Zadig, go to the `Options` menu and check `List All Devices`.
+        </li>
+        <li>
+            <strong>Select MCUBOOT Device:</strong> Find and select <code>MCUBOOT</code> in the main dropdown list. Ensure the USB ID matches `2FE3:0100` (this is the first DFU stage).
+        </li>
+        <li>
+            <strong>Select WinUSB Driver:</strong> In the box to the right of the green arrow, make sure `WinUSB` is selected as the target driver. (Do NOT select libusb-win32/libusbK or UsbDk).
+        </li>
+        <li>
+            <strong>Install Driver:</strong> Click the "Replace Driver" or "Install Driver" button. Confirm any security prompts. This associates the WinUSB driver with the device (`2FE3:0100`).
+        </li>
+        <li>
+            <strong>Close Zadig:</strong> Once the driver installation is successful, you can close Zadig.
+        </li>
       </ol>
-      <p>Now follow the same double‑refresh workflow as macOS (<code>MCUBOOT → refresh → MCUBOOT → refresh</code>) and flashing should work.</p>
+       <p><strong>Note on Drivers:</strong> You only need to install the WinUSB driver for the first `MCUBOOT` instance (`2FE3:0100`). Windows should automatically use this driver when the device transitions to its second stage (which might have USB ID `2FE3:ffff`) during the connection process.</p>
+
+      <h3>3. Windows Flashing Workflow</h3>
+       <p>After the WinUSB driver is installed using Zadig, the flashing process requires refreshes to handle the two-stage bootloader:</p>
+       <ol>
+        <li>With the μCritter in DFU mode and connected, click the <strong>Connect & Flash Firmware</strong> button above.</li>
+        <li>Select the <code>MCUBOOT</code> device in the browser pop-up and click <strong>Connect</strong>.</li>
+        <li>The status might show a disconnect; this is the stage 1 to stage 2 transition. Wait a moment.</li>
+        <li><strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
+        <li>Click <strong>Connect & Flash Firmware</strong> again and select <code>MCUBOOT</code> again.</li>
+        <li>Wait a moment for the device to stabilize (ignore potential temporary `STALL` errors).</li>
+        <li><strong>Refresh the web page one more time</strong>.</li>
+        <li>Click <strong>Connect & Flash Firmware</strong>. It should now connect and automatically start the flashing process.</li>
+      </ol>
+       <p>The μCritter should reboot automatically after successful flashing.</p>
     </section>
 
-    <!-- ================================================= -->
-    <!-- FOOTER                                             -->
-    <!-- ================================================= -->
-    <footer style="text-align: center; margin-top: 3rem; font-size: 0.9rem;">
+    <section class="instructions" data-ins="linux" hidden>
+      <h2>2. Linux Setup (udev Rules Required)</h2>
+      <p>For web flashing to work reliably on Linux, you need to grant your user permission to access the μCritter USB device in its different DFU modes. This is done by adding a custom `udev` rule.</p>
+      <ol>
+        <li>
+          <strong>Open a terminal window.</strong>
+        </li>
+        <li>
+          <strong>Create or Edit the udev Rule File:</strong> Use a text editor with root privileges (like `nano` or `gedit`) to create/edit the rule file. A good location is `/etc/udev/rules.d/51-mcuboot.rules`.
+          <pre><code class="language-bash">sudo nano /etc/udev/rules.d/51-mcuboot.rules</code></pre>
+        </li>
+        <li>
+            <strong>Add Both Rules:</strong> Paste the following two lines into the file. These cover both stages of the DFU bootloader. It's important to have both for reliable operation.
+          <pre><code class="language-text">SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"</code></pre>
+          <p><small>(Note: Ensure your user is part of the `plugdev` group. You can check with `groups $USER` and add yourself with `sudo usermod -aG plugdev $USER` if needed, then log out and back in.)</small></p>
+        </li>
+        <li>
+          <strong>Save and Close</strong> the file (in `nano`: <kbd>Ctrl</kbd>+<kbd>X</kbd>, then <kbd>Y</kbd>, then <kbd>Enter</kbd>).
+        </li>
+        <li>
+            <strong>Reload udev Rules:</strong> Apply the changes without rebooting:
+            <pre><code class="language-bash">sudo udevadm control --reload-rules && sudo udevadm trigger</code></pre>
+            <small>(Added `udevadm trigger` to help apply rules to already connected devices).</small>
+        </li>
+        <li>
+            <strong>Re-plug the Device:</strong> Unplug the μCritter and plug it back in while it's still in DFU mode (or put it back into DFU mode if needed).
+        </li>
+      </ol>
+
+      <h3>3. Linux Flashing Workflow</h3>
+      <p>With the udev rules in place, the flashing process involves the same refresh steps as macOS and Windows:</p>
+       <ol>
+        <li>With the μCritter in DFU mode and connected, click the <strong>Connect & Flash Firmware</strong> button above.</li>
+        <li>Select the <code>MCUBOOT</code> device in the browser pop-up and click <strong>Connect</strong>.</li>
+        <li>Wait for the stage 1 to stage 2 transition (status might briefly show disconnect).</li>
+        <li><strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
+        <li>Click <strong>Connect & Flash Firmware</strong> again and select <code>MCUBOOT</code> again.</li>
+         <li>Wait a moment (ignore potential temporary `STALL` errors).</li>
+        <li><strong>Refresh the web page one more time</strong>.</li>
+        <li>Click <strong>Connect & Flash Firmware</strong>. It should connect and start flashing automatically.</li>
+      </ol>
+       <p>The μCritter should reboot automatically after successful flashing.</p>
+    </section>
+
+    <footer>
       <p>
         <a href="https://ucritter.com">← Back to μCritter.com</a> ·
         <a href="https://docs.ucritter.com">Documentation</a>
       </p>
+      <p><small>μCritAir WebDFU Interface</small></p>
     </footer>
   </body>
 </html>
