@@ -2,187 +2,260 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>μCritAir WebDFU</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>μCritter Firmware Pupdate!</title> <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="sakura.css" />
 
     <style>
       :root {
-        --ucritter-primary: #ff7e3f;  /* vibrant orange */
-        --ucritter-accent:  #ffb15e;  /* light‑orange accent */
-        --ucritter-bg:      #ffffff;
-        --ucritter-text:    #333333;
+        --ucritter-primary: #ff7e3f;  /* Vibrant Orange */
+        --ucritter-accent:  #ffb15e;  /* Light Orange Accent */
+        --ucritter-bg:      #fdfcfb;  /* Slightly off-white bg */
+        --ucritter-text:    #4a4a4a;  /* Dark grey text */
+        --ucritter-light-text: #686868; /* Lighter grey */
+        --ucritter-border:  #ececec;  /* Light border */
+        --ucritter-card-bg: #ffffff;  /* White card background */
+        --ucritter-code-bg: #f0f0f0;  /* Code background */
+        --ucritter-error:   #d32f2f;  /* Error red */
+        --ucritter-success: #388e3c;  /* Success green */
+        --ucritter-warning-bg: #fff8e6; /* Warning/Note background */
+        --ucritter-warning-border: var(--ucritter-accent);
+        --font-family: 'Nunito', system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; /* New font */
       }
 
-      /* ---------- layout ---------- */
+      /* ---------- Base & Layout ---------- */
+      html { font-size: 62.5%; /* 1rem = 10px */ }
+
       body {
         background: var(--ucritter-bg);
         color: var(--ucritter-text);
-        max-width: none; /* Explicitly override sakura.css max-width */
-        width: auto; /* Let body flow naturally */
-        margin: 0; /* Remove auto horizontal margins */
-        padding: 1rem 1.5rem 3rem; /* Adjusted padding for full width */
-        font-family: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+        font-family: var(--font-family);
+        font-size: 1.6rem; /* Base font size */
+        line-height: 1.6;
+        max-width: none;
+        width: auto;
+        margin: 0;
+        padding: 0 0 3rem; /* Remove top/side padding, keep bottom */
       }
 
-      a { color: var(--ucritter-primary); }
-      a:hover { border-bottom-color: var(--ucritter-primary); color: var(--ucritter-primary); }
-
-      /* Container for centering specific sections if needed later */
-      .content-container {
-          max-width: 75rem; /* Reintroduce max-width for specific content blocks */
-          width: 90%;
-          margin: 0 auto; /* Center the container */
+      /* Centering container for major content blocks */
+      .container {
+          max-width: 80rem; /* Slightly wider max-width */
+          width: 92%;     /* Slightly wider percentage */
+          margin: 0 auto;
+          padding: 0 1rem; /* Add padding inside container */
+          box-sizing: border-box;
       }
 
+      a { color: var(--ucritter-primary); text-decoration: none; font-weight: 700; }
+      a:hover { text-decoration: underline; }
 
-      /* ---------- hero ---------- */
+      h1, h2, h3, h4 { font-weight: 700; color: var(--ucritter-text); line-height: 1.2; }
+      h1 { font-size: 3.2rem; margin-bottom: 0.5rem; color: var(--ucritter-primary); }
+      h2 { font-size: 2.4rem; margin-top: 3rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--ucritter-border); padding-bottom: 0.5rem;}
+      h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucritter-primary); }
+
+      /* ---------- Hero ---------- */
       .hero {
         text-align: center;
-        padding: 1rem 0 2rem;
+        padding: 3rem 1rem 3rem; /* More padding */
+        background-color: var(--ucritter-card-bg); /* White background */
+        border-bottom: 1px solid var(--ucritter-border);
+        margin-bottom: 2rem;
       }
-      .hero h1 {
-        font-size: 2.75rem;
-        color: var(--ucritter-primary);
-        margin: 0 0 0.5rem;
+      .hero .tagline {
+        font-size: 1.8rem;
+        color: var(--ucritter-light-text);
+        max-width: 60ch; /* Limit tagline width for readability */
+        margin: 0 auto;
       }
-      .hero .tagline { font-size: 1.25rem; color: #686868; }
 
-      /* ---------- flash box ---------- */
-      #flashSection {
-        border: 1px solid #ececec;
-        border-radius: 8px;
-        background: #fafafa;
-        padding: 2rem 1.5rem;
+      /* ---------- Card Style for Sections ---------- */
+      .card {
+        background: var(--ucritter-card-bg);
+        border: 1px solid var(--ucritter-border);
+        border-radius: 12px; /* More rounded corners */
+        padding: 2.5rem 2rem;
         margin-bottom: 2.5rem;
-        max-width: 75rem;
-        width: 90%; /* Use percentage for responsiveness */
-        margin-left: auto;
-        margin-right: auto;
-        box-sizing: border-box; /* Include padding in width */
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05); /* Subtle shadow */
       }
-      #flashSection h2 {
-        margin-top: 0;
-        color: var(--ucritter-primary);
-        text-align: center;
-      }
+      .card h2 { margin-top: 0; border: none; padding-bottom: 0; margin-bottom: 2rem; text-align: center;}
+
+
+      /* ---------- Flash UI (Card) ---------- */
+      #flashSection {} /* Uses .card style */
+
       button#connect {
         background: var(--ucritter-primary);
         border: none;
-        padding: 0.9rem 1.8rem;
+        padding: 1.2rem 2.4rem; /* Larger padding */
         border-radius: 8px;
-        font-size: 1.1rem;
+        font-size: 1.6rem; /* Match base font size */
+        font-weight: 700;
         color: #fff;
         cursor: pointer;
-        transition: opacity 0.2s ease;
+        transition: background-color 0.2s ease, transform 0.1s ease; /* Add transform */
+        display: inline-block; /* Ensure it behaves well */
+        margin-top: 1rem; /* Add space above */
       }
-      button#connect:hover   { opacity: 0.92; }
-      button#connect:disabled{ opacity: 0.5;  cursor: not-allowed; }
+      button#connect:hover { background-color: #e66a2f; /* Darker orange */ transform: translateY(-1px); }
+      button#connect:active { transform: translateY(0px); }
+      button#connect:disabled { background-color: #ffb15e; opacity: 0.7; cursor: not-allowed; transform: none; }
 
-      #usbInfo { white-space: pre-wrap; font-size: 0.9rem; margin-top: 1rem; }
-      .log { font-size: 0.9rem; max-height: 150px; overflow-y: auto; background: #eee; padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem;}
-      .log p { margin: 0.25rem 0; }
-      .log p.error { color: #d32f2f; font-weight: bold; }
-      .log p.warning { color: #ffa000; }
-      .log progress { width: 100%; }
+      #status { margin-left: 1rem; font-weight: 700; }
+      #usbInfo { white-space: pre-wrap; font-size: 1.3rem; margin-top: 1.5rem; background: var(--ucritter-code-bg); padding: 1rem; border-radius: 6px; color: var(--ucritter-light-text); }
 
+      fieldset { border: 1px solid var(--ucritter-border); border-radius: 8px; padding: 1.5rem; margin-top: 2rem; }
+      legend { font-weight: 700; color: var(--ucritter-primary); font-size: 1.6rem; padding: 0 0.5rem; margin-left: 0.5rem; }
 
-      fieldset {
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        padding: 1rem 1.25rem;
-        margin-top: 1.5rem;
+      .log { font-size: 1.4rem; max-height: 180px; overflow-y: auto; background: var(--ucritter-code-bg); padding: 1rem; border-radius: 6px; margin-top: 1rem; line-height: 1.4; }
+      .log p { margin: 0.4rem 0; }
+      .log p.error { color: var(--ucritter-error); font-weight: 700; }
+      .log p.warning { color: #ffa000; } /* Keep warning orange distinct */
+      .log p.success { color: var(--ucritter-success); font-weight: 700; }
+      .log progress { width: 100%; margin-top: 0.5rem; accent-color: var(--ucritter-primary); }
+
+      /* Input fields styling */
+      input[type="text"], input[type="number"] {
+          font-family: var(--font-family);
+          font-size: 1.4rem;
+          padding: 0.8rem 1rem;
+          border: 1px solid var(--ucritter-border);
+          border-radius: 6px;
+          background-color: #fff; /* Ensure background is white */
+          margin-left: 0.5rem;
       }
-      legend { font-weight: 600; color: var(--ucritter-primary); }
+       input[type="text"]:focus, input[type="number"]:focus {
+           border-color: var(--ucritter-primary);
+           outline: none;
+           box-shadow: 0 0 0 2px rgba(255, 126, 63, 0.2);
+       }
 
-      /* ---------- instructions ---------- */
-      .instructions {
-        border-left: 4px solid var(--ucritter-accent);
-        background: #fffefc;
-        padding: 1.25rem 1.5rem;
-        margin-top: 1.5rem;
-        max-width: 75rem;
-        width: 90%; /* Use percentage for responsiveness */
-        margin-left: auto;
-        margin-right: auto;
-        box-sizing: border-box; /* Include padding in width */
+
+      /* ---------- Instructions Styling ---------- */
+      .instructions { /* Uses .card style */ }
+      .instructions h2 { text-align: left; margin-bottom: 1.5rem; }
+      .instructions h3 { font-size: 1.8rem; margin-top: 2.5rem; }
+      .instructions ol, .instructions ul { padding-left: 2em; margin-bottom: 1.5rem; }
+      .instructions li { margin-bottom: 1em; }
+      .instructions strong { font-weight: 700; color: var(--ucritter-text); }
+      .instructions em { font-style: italic; color: var(--ucritter-light-text); }
+
+      /* Note/Warning Box Styling */
+      .note-box {
+          background-color: var(--ucritter-warning-bg);
+          padding: 1.5rem; /* Increase padding slightly */
+          border-radius: 8px;
+          margin: 1.5rem 0; /* Adjust margin */
+          border-left: 4px solid var(--ucritter-warning-border);
+          font-size: 1.5rem; /* Slightly smaller font for notes */
       }
-      .instructions h2 { margin-top: 0; }
-      .instructions h3 { font-size: 1.2em; color: var(--ucritter-primary); margin-top: 1.5rem; }
+      .note-box p { margin: 0.5rem 0; }
+      .note-box strong { color: var(--ucritter-primary); } /* Highlight strong text in notes */
+
+      /* Specific style for the initial 'Read First' warning */
+      .read-first-warning {
+          background-color: #ffebee; /* Light red background */
+          border-left-color: var(--ucritter-error); /* Red border */
+          color: #c62828; /* Darker red text */
+      }
+      .read-first-warning strong { color: var(--ucritter-error); } /* Make strong text red */
+      .read-first-warning p::before {
+          content: "⚠️ "; /* Add warning emoji */
+          margin-right: 0.5rem;
+      }
 
       /* ---------- OS toggle ---------- */
       .os-toggle {
           text-align: center;
-          margin: 1rem auto 1.5rem; /* Center the toggle itself */
-          max-width: 75rem;
-          width: 90%;
-        }
+          margin: 2.5rem auto 2.5rem; /* Center the toggle itself */
+          padding: 1.5rem 1rem;
+          background: var(--ucritter-card-bg);
+          border: 1px solid var(--ucritter-border);
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      }
+       .os-toggle span { font-weight: 700; margin-right: 1rem; display: block; margin-bottom: 1rem; font-size: 1.6rem;}
       .os-btn {
         background: none;
-        border: 2px solid var(--ucritter-primary);
+        border: 2px solid var(--ucritter-accent);
         color: var(--ucritter-primary);
-        padding: 0.4rem 1rem;
-        margin: 0.25rem 0.25rem; /* Add vertical margin for wrapping */
-        border-radius: 6px;
+        padding: 0.8rem 1.6rem; /* Adjusted padding */
+        margin: 0.5rem 0.5rem; /* Add vertical margin for wrapping */
+        border-radius: 8px; /* Match button */
         cursor: pointer;
-        transition: background 0.2s ease, color 0.2s ease;
-        font-size: 0.95rem;
+        transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        font-size: 1.4rem; /* Slightly smaller font */
+        font-weight: 700;
       }
       .os-btn.active,
-      .os-btn:hover { background: var(--ucritter-primary); color: #fff; }
+      .os-btn:hover { background: var(--ucritter-primary); color: #fff; border-color: var(--ucritter-primary); }
 
       /* ---------- browser notice ---------- */
       #browserNotice {
-        background: #fff8e6;
-        border: 2px solid var(--ucritter-primary);
-        padding: 1.5rem 1.25rem;
+        background: #fff3cd; /* Warning yellow */
+        border: 1px solid #ffeeba;
+        color: #856404; /* Dark yellow text */
+        padding: 1.5rem;
         border-radius: 8px;
-        max-width: 75rem;
-        width: 90%; /* Use percentage for responsiveness */
-        margin: 1.5rem auto 2rem;
+        margin: 2rem auto 2rem;
         text-align: center;
-        font-size: 1.15rem;
-        font-weight: 600;
-        box-sizing: border-box; /* Include padding in width */
+        font-size: 1.5rem;
+        font-weight: 400;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
       }
       #browserNotice p { margin: 0.5rem 0; }
+      #browserNotice strong { font-weight: 700; }
       #browserNotice .download-btn {
         display: inline-block;
-        margin-top: 0.75rem;
+        margin-top: 1rem;
         background: var(--ucritter-primary);
         color: #fff;
-        padding: 0.6rem 1.2rem;
-        border-radius: 6px;
+        padding: 0.8rem 1.6rem;
+        border-radius: 8px;
         text-decoration: none;
-        font-size: 1rem;
-        transition: opacity 0.2s ease;
+        font-size: 1.4rem;
+        transition: background-color 0.2s ease;
+        font-weight: 700;
       }
-       #browserNotice .download-btn:hover { opacity: 0.9; }
+       #browserNotice .download-btn:hover { background-color: #e66a2f; text-decoration: none;}
 
-      /* ---------- inline kbd ---------- */
+      /* ---------- inline kbd & code ---------- */
       kbd {
         background: #eee;
         border: 1px solid #ccc;
-        border-radius: 3px;
-        padding: 0.1em 0.4em;
+        border-radius: 4px; /* Slightly less round */
+        padding: 0.2em 0.5em; /* Adjusted padding */
         font-size: 0.9em;
         font-family: monospace;
         box-shadow: 1px 1px 1px rgba(0,0,0,0.1);
+        color: #333;
+        margin: 0 0.1em;
       }
-      code { font-family: monospace; background-color: #f0f0f0; padding: 0.1em 0.3em; border-radius: 3px;}
-      pre { background-color: #f0f0f0; padding: 1em; border-radius: 4px; overflow-x: auto; }
-      pre code { background: none; padding: 0; }
+      code {
+          font-family: monospace;
+          background-color: var(--ucritter-code-bg);
+          padding: 0.2em 0.4em;
+          border-radius: 4px;
+          font-size: 0.9em;
+       }
+      pre { background-color: var(--ucritter-code-bg); padding: 1.5em; border-radius: 8px; overflow-x: auto; margin: 1em 0; }
+      pre code { background: none; padding: 0; font-size: 1.3rem; line-height: 1.5; }
 
       /* ---------- Footer ---------- */
       footer {
-          max-width: 75rem;
-          width: 90%;
-          margin: 3rem auto 0;
+          margin: 4rem auto 0;
+          padding-top: 2rem;
+          border-top: 1px solid var(--ucritter-border);
           text-align: center;
-          font-size: 0.9rem;
-          color: #777;
+          font-size: 1.4rem;
+          color: var(--ucritter-light-text);
       }
+       footer p { margin: 0.5rem 0; }
     </style>
 
     <script src="dfu.js"></script>
@@ -191,86 +264,105 @@
     <script src="dfu-util.js"></script>
 
     <script>
+      // Existing JS logic remains the same...
       // --------------------------------------------------
       // Browser + OS detection helpers
       // --------------------------------------------------
       const ua             = navigator.userAgent;
-      // Include Edge Chromium detection
       const isChromeDesk   = /Chrome\//.test(ua) && !/OPR\//.test(ua) && !/(Android|iPhone|iPad|Mobile)/i.test(ua);
       const isEdgeChromium = /Edg\//.test(ua) && !/(Android|iPhone|iPad|Mobile)/i.test(ua);
       const isWebUsbSupported = isChromeDesk || isEdgeChromium;
-
-      // Default to 'mac' if detection fails or is ambiguous
       let   detectedOS     = /Win/.test(ua) ? "win" : /Linux/.test(ua) ? "linux" : "mac";
+
+      // Add success/clear messages to log
+      function logSuccess(msg) {
+        const downloadLog = document.getElementById("downloadLog");
+        if (downloadLog) {
+            let success = document.createElement("p");
+            success.className = "success";
+            success.textContent = msg;
+            downloadLog.appendChild(success);
+            // Scroll to bottom
+            downloadLog.scrollTop = downloadLog.scrollHeight;
+        }
+      }
+      function clearLog(context) {
+          if (context) {
+              context.innerHTML = ""; // Clear previous messages
+          }
+      }
+
 
       document.addEventListener("DOMContentLoaded", () => {
         // ---- Show notice if WebUSB is not supported ----
+        const notice = document.getElementById("browserNotice");
+        const connectBtn = document.getElementById("connect");
+        const flashSection = document.getElementById("flashSection");
+        const osToggle = document.querySelector(".os-toggle");
+        const instructionsSections = document.querySelectorAll("section.instructions"); // More specific selector
+        const readFirstWarning = document.getElementById("readFirstWarning"); // Get the new warning box
+
         if (!isWebUsbSupported) {
-          const notice = document.getElementById("browserNotice") || document.createElement("div");
-          notice.id    = "browserNotice"; // Ensure ID is set if created
-          notice.innerHTML = `
-            <p><strong>Please use Google Chrome or Microsoft Edge on a desktop computer (Windows, macOS, Linux) for WebUSB flashing.</strong></p>
-            <p>Other browsers do not currently support the required WebUSB feature.</p>
-            <a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Download Chrome</a>
-            <a class="download-btn" href="https://www.microsoft.com/edge" target="_blank" rel="noopener" style="margin-left: 10px;">Download Edge</a>`;
-
-          // Prepend only if it wasn't already in the DOM
-          if (!document.getElementById("browserNotice")) {
-              document.body.prepend(notice);
-          } else {
-             // Ensure it's visible if it was hidden
-             notice.hidden = false;
+          if (notice) {
+              notice.innerHTML = `
+                <p><strong>Woof! This browser can't do WebUSB tricks.</strong></p>
+                <p>Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on a desktop computer (Windows, macOS, Linux) to flash your Critter.</p>
+                <a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Get Chrome</a>
+                <a class="download-btn" href="https://www.microsoft.com/edge" target="_blank" rel="noopener" style="margin-left: 10px;">Get Edge</a>`;
+              notice.hidden = false;
           }
-
-          const connectBtn = document.getElementById("connect");
-          if (connectBtn) {
-              connectBtn.disabled = true;
-          }
-           // Hide sections that require WebUSB
-           const flashSection = document.getElementById("flashSection");
-           if (flashSection) flashSection.hidden = true;
-           const osToggle = document.querySelector(".os-toggle");
-           if (osToggle) osToggle.hidden = true;
-           const instructions = document.querySelectorAll(".instructions");
-           instructions.forEach(inst => inst.hidden = true);
-
+          if (connectBtn) connectBtn.disabled = true;
+          if (flashSection) flashSection.hidden = true;
+          if (osToggle) osToggle.hidden = true;
+          instructionsSections.forEach(inst => inst.hidden = true); // Hide all instruction sections
+          if (readFirstWarning) readFirstWarning.hidden = true; // Hide 'Read First' if no WebUSB
 
         } else {
-            // Ensure notice is hidden if WebUSB is supported
-            const notice = document.getElementById("browserNotice");
-            if (notice) notice.hidden = true; // Hide notice if it exists from HTML
+            if (notice) notice.hidden = true; // Hide notice if it exists and USB is supported
+            if (flashSection) flashSection.hidden = false; // Ensure sections are visible
+            if (osToggle) osToggle.hidden = false;
+             // Instructions visibility handled by switchOS
+             if (readFirstWarning) readFirstWarning.hidden = false; // Show 'Read First' if WebUSB is supported
         }
 
-
-        // ---- Highlight & reveal OS instructions ----
+        // ---- OS Switching Logic ----
         const osButtons = document.querySelectorAll('.os-btn');
-        const osSections = document.querySelectorAll('[data-ins]');
 
-        // Function to switch OS view
         function switchOS(os) {
-          osSections.forEach(sec => {
-            sec.hidden = sec.dataset.ins !== os;
+          instructionsSections.forEach(sec => {
+            // Hide all initially, then show the selected one
+             sec.hidden = true;
+             if (sec.dataset.ins === os) {
+                 sec.hidden = false;
+             }
           });
+           // Ensure the non-OS specific intro is always shown if JS runs and WebUSB is supported
+           const introSection = document.getElementById('intro-instructions');
+           if (introSection) introSection.hidden = !isWebUsbSupported; // Show only if WebUSB supported
+
           osButtons.forEach(btn => {
-            if (btn.dataset.os === os) {
-              btn.classList.add('active');
-            } else {
-              btn.classList.remove('active');
-            }
+            btn.classList.toggle('active', btn.dataset.os === os);
           });
-          // Update the detectedOS in case the user manually switches
-          detectedOS = os;
+          detectedOS = os; // Update detectedOS if user manually switches
         }
 
-        // Initial setup based on detected OS (only if WebUSB is supported)
+        // Initial setup (only if WebUSB is supported)
         if (isWebUsbSupported) {
             switchOS(detectedOS);
-            // Add click listeners to buttons
             osButtons.forEach(btn => {
               btn.addEventListener('click', (e) => {
                 switchOS(e.target.dataset.os);
               });
             });
+        } else {
+             // Explicitly hide OS-specific instructions if WebUSB not supported
+             instructionsSections.forEach(sec => {
+                if (sec.dataset.ins) { // Check if it's an OS-specific section
+                    sec.hidden = true;
+                }
+             });
+             const introSection = document.getElementById('intro-instructions');
+             if (introSection) introSection.hidden = true; // Also hide intro if no WebUSB
         }
       });
 
@@ -278,197 +370,195 @@
   </head>
 
   <body>
-    <div id="browserNotice" hidden></div>
-
-    <header class="hero">
-      <h1>μCritAir Web Firmware Updater</h1>
-      <p class="tagline">Flash your μCritter straight from your browser — no installer required.</p>
-    </header>
-
-    <section id="flashSection">
-      <h2>Flash your device</h2>
-      <p style="text-align: center;">
-        <button id="connect">Connect & Flash Firmware</button>
-        <span id="status" style="margin-left: 0.75rem"></span>
-      </p>
-
-      <dialog id="interfaceDialog">
-        <p>Your device exposes multiple DFU interfaces. Please select one:</p>
-        <form id="interfaceForm" method="dialog">
-          <button id="selectInterface" type="submit">Select Interface</button>
-          <button type="button" onclick="this.closest('dialog').close('cancelled')">Cancel</button>
-        </form>
-      </dialog>
-
-      <div id="usbInfo"></div>
-
-      <fieldset>
-        <legend>Device Firmware Update (DFU)</legend>
-        <form id="configForm">
-          <div id="dfuseFields" hidden>
-            <label>
-              DfuSe Start Address:
-              <input type="text" id="dfuseStartAddress" size="10" pattern="0x[A-Fa-f0-9]+" placeholder="e.g., 0x08000000" />
-            </label>
-            <label>
-              DfuSe Upload Size (for reading firmware):
-              <input type="number" id="dfuseUploadSize" min="1" placeholder="Bytes" />
-            </label>
-          </div>
-
-          <fieldset>
-            <legend>Flashing Progress</legend>
-            <div class="log" id="downloadLog">Ready to flash firmware...</div>
-          </fieldset>
-        </form>
-      </fieldset>
-    </section>
-
-    <div class="os-toggle">
-      <span>Show instructions for:</span>
-      <button class="os-btn" data-os="mac">macOS</button>
-      <button class="os-btn" data-os="win">Windows</button>
-      <button class="os-btn" data-os="linux">Linux</button>
+    <div class="container">
+        <div id="browserNotice" hidden></div>
     </div>
 
-    <section class="instructions">
-        <h2>1. Put the μCritter into DFU Bootloader Mode</h2>
-        <p>You need to put your μCritter into a special mode to accept new firmware. You should see the <strong>DFU Bootloader</strong> screen appear on the device after doing one of the following:</p>
-        <ul>
+    <header class="hero">
+      <h1>μCritter Firmware Pupdate!</h1>
+      <p class="tagline">Time to teach your buddy some new tricks! Flash the latest firmware directly from your browser.</p>
+    </header>
+
+    <div class="container"> <div id="readFirstWarning" class="note-box read-first-warning">
+          <p><strong>Hold Your Critters!</strong> 🐴 Before you click that flash button, please take a moment to read through *all* the instructions below for your operating system (use the buttons to switch). There's important info (like driver setup and the special refresh dance!) that'll save you time and make sure your Critter gets its pupdate smoothly. Thanks!</p>
+      </div>
+
+
+      <section id="flashSection" class="card">
+        <h2>Flash Your Critter</h2>
+        <p style="text-align: center;">Connect your μCritter in DFU mode (see Step 1 below) and click the button!</p>
+        <p style="text-align: center;">
+          <button id="connect">Flash My Critter!</button> <span id="status"></span>
+        </p>
+
+        <dialog id="interfaceDialog">
+          <p>Your device has multiple DFU interfaces. Pick one, any one:</p>
+          <form id="interfaceForm" method="dialog">
+            <button id="selectInterface" type="submit">Use This Interface</button>
+            <button type="button" onclick="this.closest('dialog').close('cancelled')">Cancel</button>
+          </form>
+        </dialog>
+
+        <div id="usbInfo" style="display: none;"></div> <fieldset>
+          <legend>Update Progress</legend>
+           <div id="dfuseFields" hidden> <label> DfuSe Start Address: <input type="text" id="dfuseStartAddress" size="10" pattern="0x[A-Fa-f0-9]+" placeholder="e.g., 0x08000000"/> </label>
+            <label> DfuSe Upload Size: <input type="number" id="dfuseUploadSize" min="1" placeholder="Bytes" /> </label>
+           </div>
+           <form id="configForm"> <div class="log" id="downloadLog">Waiting for Critter connection...</div>
+           </form>
+        </fieldset>
+      </section>
+
+      <div class="os-toggle container card"> <span>Need Help? Show Instructions For:</span>
+        <div> <button class="os-btn" data-os="mac">macOS</button>
+            <button class="os-btn" data-os="win">Windows</button>
+            <button class="os-btn" data-os="linux">Linux</button>
+        </div>
+      </div>
+
+      <section id="intro-instructions" class="instructions card">
+          <h2>Step 1: Get Your Critter into DFU Mode</h2>
+          <div class="note-box" id="dfu-methods-intro"> <p><strong>Important:</strong> Your μCritter needs to be in its special "Device Firmware Update" (DFU) mode to receive the new firmware. Pick <strong>ONE</strong> of the following ways to enter DFU mode. You'll know it worked when you see the <strong>DFU Bootloader</strong> screen.</p>
+          </div>
+          <ul>
+            <li>
+              <strong>The Paperclip Poke:</strong> Gently insert a paperclip (or similar) into the tiny reset hole above the speaker. Keep it pressed while *also* holding down <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>. Release the paperclip first, then the buttons. Voilà!
+            </li>
+            <li>
+              <strong>The Sleepy Wake-up:</strong> Is your Critter asleep? Wake it up by pressing any button, but make sure you're *also* holding down <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd> as it wakes.
+            </li>
+             <li>
+              <strong>The Menu Nap:</strong> Navigate the menu to <code>Power</code> → <code>Sleep</code>. Let it nod off, then wake it using the "Sleepy Wake-up" method above (wake while holding <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>).
+            </li>
+          </ul>
+          <p><strong>Once you see the DFU Bootloader screen, connect your μCritter to the computer with a USB cable.</strong> Now you're ready for the OS-specific steps below!</p>
+           <div class="note-box"> <p><em>Why the fuss with refreshes later?</em> The μCritter has a two-stage bootloader (MCUBOOT) for safety. Your computer needs to talk to both stages, which sometimes requires a couple of page refreshes during the connection process. Reading the steps carefully helps avoid confusion!</p>
+           </div>
+      </section>
+
+
+      <section class="instructions card" data-ins="mac" hidden>
+        <h2>Step 2: macOS Flashing Dance</h2>
+        <p>Okay, Mac users! Because of the two-stage bootloader, we need to do a little connect-refresh-connect shuffle. Follow carefully!</p>
+        <ol>
+          <li>Make sure your Critter is connected via USB and showing the DFU Bootloader screen.</li>
+          <li>Click the big orange <strong>"Flash My Critter!"</strong> button above.</li>
+          <li>A browser pop-up appears. Select the device named <code>MCUBOOT</code> and click <strong>Connect</strong>.
+             <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code> in the list, your Critter isn't in DFU mode! Go back to Step 1 and try entering DFU mode again before continuing.</div>
+          </li>
+          <li><em>Poof!</em> The connection might drop immediately ("Device disconnected"). That's NORMAL! Stage 1 just handed off to Stage 2.</li>
+          <li>Wait a few seconds... then <strong>Refresh this web page</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>).</li>
+          <li>Click <strong>"Flash My Critter!"</strong> again. Select <code>MCUBOOT</code> in the pop-up again.</li>
+          <li>You might see a brief <code>STALL</code> error in the progress log. Patience, young grasshopper.</li>
+          <li>Wait a moment... then <strong>Refresh the page ONE MORE TIME</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>).</li>
+          <li>Click <strong>"Flash My Critter!"</strong> a final time. It should now connect properly, and the flashing will begin automatically! Watch the progress log.</li>
+        </ol>
+         <p><strong>Did it work?</strong> Once flashing completes, your Critter should automatically reboot, ready for action! You can optionally check Chrome's site permissions (puzzle piece/sliders icon in address bar) – you should see two `MCUBOOT` devices listed under USB permissions.</p>
+      </section>
+
+      <section class="instructions card" data-ins="win" hidden>
+        <h2>Step 2: Windows Driver Wrangling (One-Time Setup)</h2>
+        <p>Howdy, Windows user! We need to quickly introduce Windows to your Critter's DFU mode using a tool called Zadig. You only need to do this once!</p>
+        <h3>A. Install the WinUSB Driver with Zadig</h3>
+        <ol>
           <li>
-            <strong>Hardware reset method:</strong> Gently insert a paperclip into the small reset hole above the speaker <em>while simultaneously holding down</em> the <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd> buttons. Release the reset pin first, then the buttons.
+              <strong>Fetch Zadig:</strong> Download the latest version from <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">zadig.akeo.ie</a>. It's a portable tool, no installation required.
           </li>
           <li>
-            <strong>Menu method:</strong> Navigate to Menu → Power → Sleep. Then, wake the device by pressing any button <em>while holding down</em> <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>.
+              <strong>Critter in DFU Mode:</strong> Make sure your μCritter is showing its DFU Bootloader screen (using one of the methods from Step 1) and is connected to your PC via USB.
           </li>
           <li>
-            <strong>Wake from sleep method:</strong> If your device is already asleep, simply wake it by pressing any button <em>while holding down</em> <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>.
+              <strong>Run Zadig (as Admin):</strong> Right-click the downloaded Zadig file and choose "Run as administrator".
           </li>
-        </ul>
-        <p>Once in DFU mode, connect the μCritter to your computer using a USB cable.</p>
-    </section>
+          <li>
+              <strong>Reveal All Devices:</strong> In Zadig's menu bar, click `Options` → `List All Devices`. Make sure this is checked!
+          </li>
+          <li>
+              <strong>Spot Your Critter:</strong> Find and select <code>MCUBOOT</code> from the dropdown list. Double-check the USB ID is <code>2FE3:0100</code>.
+          </li>
+          <li>
+              <strong>Choose the Right Driver:</strong> Look at the box next to the green arrow. Use the little arrows to select <code>WinUSB</code>. (Crucial! Do NOT pick libusb or anything else).
+          </li>
+          <li>
+              <strong>Install/Replace Driver:</strong> Click the big button that says "Replace Driver" or "Install Driver". Say "Yes" to any prompts.
+          </li>
+          <li>
+              <strong>Done!</strong> Close Zadig once it confirms success. You shouldn't need to do this again for this computer.
+          </li>
+        </ol>
+         <div class="note-box"><p><small><strong>Note on Drivers:</strong> Installing the driver for the first stage (<code>2FE3:0100</code>) is usually enough. Windows should automatically use this driver when the device transitions to its second stage too.</small></p></div>
 
+        <h3>B. Windows Flashing Dance</h3>
+         <p>With the driver ready, it's time for the Windows version of the connect-refresh shuffle:</p>
+         <ol>
+          <li>Make sure your Critter is connected (in DFU mode).</li>
+          <li>Click the big orange <strong>"Flash My Critter!"</strong> button.</li>
+          <li>Select <code>MCUBOOT</code> in the browser pop-up and click <strong>Connect</strong>.
+              <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code> in the list, your Critter isn't in DFU mode! Go back to Step 1 and try entering DFU mode again before continuing.</div>
+          </li>
+          <li>Connection drops? Perfect! That's the stage 1-to-2 transition.</li>
+          <li>Wait a sec... then <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
+          <li>Click <strong>"Flash My Critter!"</strong> again. Select <code>MCUBOOT</code> again.</li>
+          <li>Ignore any brief <code>STALL</code> errors in the log. Wait a moment.</li>
+          <li><strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
+          <li>Click <strong>"Flash My Critter!"</strong>. Success! Flashing should begin.</li>
+        </ol>
+         <p>Your Critter will reboot automatically when done. High five!</p>
+      </section>
 
-    <section class="instructions" data-ins="mac" hidden>
-      <h2>2. macOS Flashing Workflow</h2>
-      <p>On macOS, the device needs to be authorized twice due to the two-stage bootloader (MCUBOOT).</p>
-      <ol>
-        <li>With the μCritter in DFU mode and connected, click the <strong>Connect & Flash Firmware</strong> button above.</li>
-        <li>A browser pop-up will appear. Select the device named <code>MCUBOOT</code> and click <strong>Connect</strong>.</li>
-        <li>The status might briefly show "Device disconnected" or "No device found." This is normal. The first stage has rebooted the device into the second DFU stage.</li>
-        <li>
-            Wait a few seconds, then <strong>Refresh this web page</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>).
-        </li>
-         <li>Click <strong>Connect & Flash Firmware</strong> again. Select the <code>MCUBOOT</code> device in the pop-up once more.</li>
-         <li>A temporary <code>STALL</code> error might appear in the log. Wait a moment.</li>
-        <li>
-          <strong>Refresh the web page one last time</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>). Now both stages of the bootloader should be authorized by your browser.
-        </li>
-         <li>Click <strong>Connect & Flash Firmware</strong>. This time, it should connect successfully, and the firmware flashing process will begin automatically. Follow the progress in the "Flashing Progress" log area.</li>
-        <li>
-          <strong>Verification (Optional):</strong> Click the site permissions icon (often looks like puzzle piece or sliders) in Chrome's address bar. Under USB Devices, you should see permissions granted for <em>two</em> `MCUBOOT` devices.
-        </li>
-      </ol>
-       <p>Once flashing is complete, the μCritter should automatically reboot with the new firmware.</p>
-    </section>
-
-    <section class="instructions" data-ins="win" hidden>
-      <h2>2. Windows Setup (Requires WinUSB Driver)</h2>
-      <p>Web-based flashing on Windows requires a one-time setup to install the correct USB driver (WinUSB) for the μCritter when it's in DFU mode. We recommend using the Zadig tool for this.</p>
-      <ol>
-        <li>
-            <strong>Download Zadig:</strong> Go to <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">https://zadig.akeo.ie/</a> and download the latest version of Zadig. It's a standalone executable, no installation needed.
-        </li>
-        <li>
-            <strong>Ensure μCritter is in DFU Mode:</strong> Follow the steps in section 1 above to put your μCritter into DFU Bootloader mode and connect it to your PC via USB.
-        </li>
-        <li>
-            <strong>Run Zadig:</strong> Open the downloaded Zadig application. You may need administrator privileges.
-        </li>
-        <li>
-            <strong>List All Devices:</strong> In Zadig, go to the `Options` menu and check `List All Devices`.
-        </li>
-        <li>
-            <strong>Select MCUBOOT Device:</strong> Find and select <code>MCUBOOT</code> in the main dropdown list. Ensure the USB ID matches `2FE3:0100` (this is the first DFU stage).
-        </li>
-        <li>
-            <strong>Select WinUSB Driver:</strong> In the box to the right of the green arrow, make sure `WinUSB` is selected as the target driver. (Do NOT select libusb-win32/libusbK or UsbDk).
-        </li>
-        <li>
-            <strong>Install Driver:</strong> Click the "Replace Driver" or "Install Driver" button. Confirm any security prompts. This associates the WinUSB driver with the device (`2FE3:0100`).
-        </li>
-        <li>
-            <strong>Close Zadig:</strong> Once the driver installation is successful, you can close Zadig.
-        </li>
-      </ol>
-       <p><strong>Note on Drivers:</strong> You only need to install the WinUSB driver for the first `MCUBOOT` instance (`2FE3:0100`). Windows should automatically use this driver when the device transitions to its second stage (which might have USB ID `2FE3:ffff`) during the connection process.</p>
-
-      <h3>3. Windows Flashing Workflow</h3>
-       <p>After the WinUSB driver is installed using Zadig, the flashing process requires refreshes to handle the two-stage bootloader:</p>
-       <ol>
-        <li>With the μCritter in DFU mode and connected, click the <strong>Connect & Flash Firmware</strong> button above.</li>
-        <li>Select the <code>MCUBOOT</code> device in the browser pop-up and click <strong>Connect</strong>.</li>
-        <li>The status might show a disconnect; this is the stage 1 to stage 2 transition. Wait a moment.</li>
-        <li><strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
-        <li>Click <strong>Connect & Flash Firmware</strong> again and select <code>MCUBOOT</code> again.</li>
-        <li>Wait a moment for the device to stabilize (ignore potential temporary `STALL` errors).</li>
-        <li><strong>Refresh the web page one more time</strong>.</li>
-        <li>Click <strong>Connect & Flash Firmware</strong>. It should now connect and automatically start the flashing process.</li>
-      </ol>
-       <p>The μCritter should reboot automatically after successful flashing.</p>
-    </section>
-
-    <section class="instructions" data-ins="linux" hidden>
-      <h2>2. Linux Setup (udev Rules Required)</h2>
-      <p>For web flashing to work reliably on Linux, you need to grant your user permission to access the μCritter USB device in its different DFU modes. This is done by adding a custom `udev` rule.</p>
-      <ol>
-        <li>
-          <strong>Open a terminal window.</strong>
-        </li>
-        <li>
-          <strong>Create or Edit the udev Rule File:</strong> Use a text editor with root privileges (like `nano` or `gedit`) to create/edit the rule file. A good location is `/etc/udev/rules.d/51-mcuboot.rules`.
-          <pre><code class="language-bash">sudo nano /etc/udev/rules.d/51-mcuboot.rules</code></pre>
-        </li>
-        <li>
-            <strong>Add Both Rules:</strong> Paste the following two lines into the file. These cover both stages of the DFU bootloader. It's important to have both for reliable operation.
-          <pre><code class="language-text">SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"
+      <section class="instructions card" data-ins="linux" hidden>
+        <h2>Step 2: Linux Permissions (udev Rules)</h2>
+        <p>Alright Linux adventurers, let's grant permission for your browser to talk to the Critter in DFU mode. We'll use a quick `udev` rule.</p>
+        <h3>A. Create the udev Rule</h3>
+        <ol>
+          <li>
+            <strong>Open Your Terminal.</strong> (You knew this was coming.)
+          </li>
+          <li>
+            <strong>Edit the Rules File:</strong> We need root privileges. Use `sudo` with your favorite text editor (like `nano`) to create/edit the file:
+            <pre><code class="language-bash">sudo nano /etc/udev/rules.d/51-mcuboot.rules</code></pre>
+          </li>
+          <li>
+              <strong>Paste These Two Lines:</strong> Copy both lines below and paste them into the editor. They cover both DFU stages (Product IDs `0100` and `ffff`).
+            <pre><code class="language-text">SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"</code></pre>
-          <p><small>(Note: Ensure your user is part of the `plugdev` group. You can check with `groups $USER` and add yourself with `sudo usermod -aG plugdev $USER` if needed, then log out and back in.)</small></p>
-        </li>
-        <li>
-          <strong>Save and Close</strong> the file (in `nano`: <kbd>Ctrl</kbd>+<kbd>X</kbd>, then <kbd>Y</kbd>, then <kbd>Enter</kbd>).
-        </li>
-        <li>
-            <strong>Reload udev Rules:</strong> Apply the changes without rebooting:
-            <pre><code class="language-bash">sudo udevadm control --reload-rules && sudo udevadm trigger</code></pre>
-            <small>(Added `udevadm trigger` to help apply rules to already connected devices).</small>
-        </li>
-        <li>
-            <strong>Re-plug the Device:</strong> Unplug the μCritter and plug it back in while it's still in DFU mode (or put it back into DFU mode if needed).
-        </li>
-      </ol>
+            <div class="note-box"><p><small><strong>Heads up!</strong> Make sure your user is in the `plugdev` group. Check with `groups $USER`. If not listed, add yourself with `sudo usermod -aG plugdev $USER`, then <strong>log out and log back in</strong> for the change to take effect.</small></p></div>
+          </li>
+          <li>
+            <strong>Save & Exit Nano:</strong> Press <kbd>Ctrl</kbd>+<kbd>X</kbd>, then <kbd>Y</kbd> to confirm, then <kbd>Enter</kbd> to save.
+          </li>
+          <li>
+              <strong>Tell udev About the New Rules:</strong> Run this command to reload the rules and apply them:
+              <pre><code class="language-bash">sudo udevadm control --reload-rules && sudo udevadm trigger</code></pre>
+          </li>
+          <li>
+              <strong>Re-plug Your Critter:</strong> Unplug the USB cable, then plug it back in. Make sure it's still in DFU mode (or repeat Step 1 if needed).
+          </li>
+        </ol>
 
-      <h3>3. Linux Flashing Workflow</h3>
-      <p>With the udev rules in place, the flashing process involves the same refresh steps as macOS and Windows:</p>
-       <ol>
-        <li>With the μCritter in DFU mode and connected, click the <strong>Connect & Flash Firmware</strong> button above.</li>
-        <li>Select the <code>MCUBOOT</code> device in the browser pop-up and click <strong>Connect</strong>.</li>
-        <li>Wait for the stage 1 to stage 2 transition (status might briefly show disconnect).</li>
-        <li><strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
-        <li>Click <strong>Connect & Flash Firmware</strong> again and select <code>MCUBOOT</code> again.</li>
-         <li>Wait a moment (ignore potential temporary `STALL` errors).</li>
-        <li><strong>Refresh the web page one more time</strong>.</li>
-        <li>Click <strong>Connect & Flash Firmware</strong>. It should connect and start flashing automatically.</li>
-      </ol>
-       <p>The μCritter should reboot automatically after successful flashing.</p>
-    </section>
+        <h3>B. Linux Flashing Dance</h3>
+        <p>With permissions granted, let's do the Linux connect-refresh tango:</p>
+         <ol>
+          <li>Critter connected? DFU mode active? Good.</li>
+          <li>Click the big orange <strong>"Flash My Critter!"</strong> button.</li>
+          <li>Select <code>MCUBOOT</code> in the browser pop-up, click <strong>Connect</strong>.
+             <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code> in the list, your Critter isn't in DFU mode! Go back to Step 1 and try entering DFU mode again before continuing.</div>
+          </li>
+          <li>Connection drop? Expected behavior! Stage 1 -> Stage 2.</li>
+          <li>Wait... then <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
+          <li>Click <strong>"Flash My Critter!"</strong> again. Select <code>MCUBOOT</code> again.</li>
+          <li>Ignore temporary <code>STALL</code> errors. Wait a moment.</li>
+          <li><strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
+          <li>Click <strong>"Flash My Critter!"</strong>. Blast off! Flashing begins.</li>
+        </ol>
+         <p>Your μCritter will restart itself when the update is complete. Nicely done!</p>
+      </section>
 
-    <footer>
-      <p>
-        <a href="https://ucritter.com">← Back to μCritter.com</a> ·
-        <a href="https://docs.ucritter.com">Documentation</a>
+    </div> <footer class="container"> <p>
+        <a href="https://ucritter.com">← Back to μCritter.com</a> |
+        <a href="https://docs.ucritter.com">Critter Docs & Guides</a>
       </p>
-      <p><small>μCritAir WebDFU Interface</small></p>
+      <p><small>Keep your Critter happy with the latest firmware!</small></p>
     </footer>
   </body>
 </html>
