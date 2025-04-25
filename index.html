@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>μCritter Firmware Pupdate!</title> <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>μCritter Firmware Pupdate!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -106,7 +107,25 @@
       button#connect:active { transform: translateY(0px); }
       button#connect:disabled { background-color: #ffb15e; opacity: 0.7; cursor: not-allowed; transform: none; }
 
-      #status { margin-left: 1rem; font-weight: 700; }
+       #status {
+          display: inline-block; /* Allow margin */
+          vertical-align: middle; /* Align with button */
+          margin-left: 1.5rem; /* More space */
+          font-weight: 700;
+          padding: 0.8rem 1.2rem; /* Adjusted padding */
+          border-radius: 6px;
+          transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+          font-size: 1.4rem; /* Slightly smaller */
+          min-height: 2.4rem; /* Ensure height consistency */
+          line-height: 1.7; /* Ensure text fits */
+          border: 1px solid transparent; /* Base border */
+      }
+      #status.status-info { background-color: #eef1f5; color: #334; border-color: #d8dde4; }
+      #status.status-prompt { background-color: var(--ucritter-warning-bg); color: #856404; border-color: var(--ucritter-warning-border); }
+      #status.status-error { background-color: #ffebee; color: var(--ucritter-error); border-color: #f1b0b7; }
+      #status.status-success { background-color: #e8f5e9; color: var(--ucritter-success); border-color: #a5d6a7; }
+
+
       #usbInfo { white-space: pre-wrap; font-size: 1.3rem; margin-top: 1.5rem; background: var(--ucritter-code-bg); padding: 1rem; border-radius: 6px; color: var(--ucritter-light-text); }
 
       fieldset { border: 1px solid var(--ucritter-border); border-radius: 8px; padding: 1.5rem; margin-top: 2rem; }
@@ -141,7 +160,7 @@
       .instructions h2 { text-align: left; margin-bottom: 1.5rem; }
       .instructions h3 { font-size: 1.8rem; margin-top: 2.5rem; }
       .instructions ol, .instructions ul { padding-left: 2em; margin-bottom: 1.5rem; }
-      .instructions li { margin-bottom: 1em; }
+      .instructions li { margin-bottom: 1em; line-height: 1.7; /* Improve readability */ }
       .instructions strong { font-weight: 700; color: var(--ucritter-text); }
       .instructions em { font-style: italic; color: var(--ucritter-light-text); }
 
@@ -153,9 +172,12 @@
           margin: 1.5rem 0; /* Adjust margin */
           border-left: 4px solid var(--ucritter-warning-border);
           font-size: 1.5rem; /* Slightly smaller font for notes */
+          line-height: 1.7;
       }
       .note-box p { margin: 0.5rem 0; }
       .note-box strong { color: var(--ucritter-primary); } /* Highlight strong text in notes */
+       .note-box code { background-color: rgba(0,0,0,0.07); } /* Darker code bg in notes */
+
 
       /* Specific style for the initial 'Read First' warning */
       .read-first-warning {
@@ -264,108 +286,499 @@
     <script src="dfu-util.js"></script>
 
     <script>
-      // Existing JS logic remains the same...
-      // --------------------------------------------------
-      // Browser + OS detection helpers
-      // --------------------------------------------------
-      const ua             = navigator.userAgent;
-      const isChromeDesk   = /Chrome\//.test(ua) && !/OPR\//.test(ua) && !/(Android|iPhone|iPad|Mobile)/i.test(ua);
-      const isEdgeChromium = /Edg\//.test(ua) && !/(Android|iPhone|iPad|Mobile)/i.test(ua);
-      const isWebUsbSupported = isChromeDesk || isEdgeChromium;
-      let   detectedOS     = /Win/.test(ua) ? "win" : /Linux/.test(ua) ? "linux" : "mac";
+      // ==================================================
+      // Main Page Logic - Interactive Flash Workflow
+      // ==================================================
+      (function() { // Wrap page logic in IIFE
+          // --- Element References ---
+          let connectButton, statusDisplay, downloadLog;
 
-      // Add success/clear messages to log
-      function logSuccess(msg) {
-        const downloadLog = document.getElementById("downloadLog");
-        if (downloadLog) {
-            let success = document.createElement("p");
-            success.className = "success";
-            success.textContent = msg;
-            downloadLog.appendChild(success);
-            // Scroll to bottom
-            downloadLog.scrollTop = downloadLog.scrollHeight;
-        }
-      }
-      function clearLog(context) {
-          if (context) {
-              context.innerHTML = ""; // Clear previous messages
+          // --- State Definitions ---
+          const STATE = {
+              IDLE: 'idle', CONNECTING_STAGE1: 'connecting_stage1', WAITING_DISCONNECT: 'waiting_disconnect',
+              PROMPT_REFRESH_1: 'prompt_refresh_1',
+              // ** NEW STATES **
+              PROMPT_CONNECT_STAGE2: 'prompt_connect_stage2', // Ask user to click button for stage 2 permission
+              PROMPT_CONNECT_FLASH: 'prompt_connect_flash', // Ask user to click button for final flash permission
+              // ** END NEW STATES **
+              CONNECTING_STAGE2: 'connecting_stage2', WAITING_STABLE: 'waiting_stable',
+              PROMPT_REFRESH_2: 'prompt_refresh_2', CONNECTING_FLASH: 'connecting_flash',
+              FLASHING: 'flashing', FLASH_COMPLETE: 'flash_complete', ERROR: 'error'
+          };
+
+          let currentState = STATE.IDLE;
+          let currentDevice = null;
+          let connectAttempts = 0;
+          const MAX_CONNECT_ATTEMPTS = 5;
+          let vid = 0x2FE3;
+          let serial = '';
+          let firmwareLoaded = false;
+
+          // --- Session Storage Keys ---
+          const stateKey = 'ucritterFlashState';
+          const serialKey = 'ucritterFlashSerial';
+
+          // --- Custom Error for User Gesture ---
+          class NeedsUserGestureError extends Error {
+              constructor(message) {
+                  super(message);
+                  this.name = "NeedsUserGestureError";
+              }
           }
-      }
 
-
-      document.addEventListener("DOMContentLoaded", () => {
-        // ---- Show notice if WebUSB is not supported ----
-        const notice = document.getElementById("browserNotice");
-        const connectBtn = document.getElementById("connect");
-        const flashSection = document.getElementById("flashSection");
-        const osToggle = document.querySelector(".os-toggle");
-        const instructionsSections = document.querySelectorAll("section.instructions"); // More specific selector
-        const readFirstWarning = document.getElementById("readFirstWarning"); // Get the new warning box
-
-        if (!isWebUsbSupported) {
-          if (notice) {
-              notice.innerHTML = `
-                <p><strong>Woof! This browser can't do WebUSB tricks.</strong></p>
-                <p>Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on a desktop computer (Windows, macOS, Linux) to flash your Critter.</p>
-                <a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Get Chrome</a>
-                <a class="download-btn" href="https://www.microsoft.com/edge" target="_blank" rel="noopener" style="margin-left: 10px;">Get Edge</a>`;
-              notice.hidden = false;
+          // --- State Management ---
+          function saveState(stateToSave, deviceSerial = serial) {
+              currentState = stateToSave;
+              sessionStorage.setItem(stateKey, stateToSave);
+              if (deviceSerial) {
+                  sessionStorage.setItem(serialKey, deviceSerial);
+              }
+              console.log("State saved:", stateToSave, "Serial:", deviceSerial);
+              updateUI();
           }
-          if (connectBtn) connectBtn.disabled = true;
-          if (flashSection) flashSection.hidden = true;
-          if (osToggle) osToggle.hidden = true;
-          instructionsSections.forEach(inst => inst.hidden = true); // Hide all instruction sections
-          if (readFirstWarning) readFirstWarning.hidden = true; // Hide 'Read First' if no WebUSB
 
-        } else {
-            if (notice) notice.hidden = true; // Hide notice if it exists and USB is supported
-            if (flashSection) flashSection.hidden = false; // Ensure sections are visible
-            if (osToggle) osToggle.hidden = false;
-             // Instructions visibility handled by switchOS
-             if (readFirstWarning) readFirstWarning.hidden = false; // Show 'Read First' if WebUSB is supported
-        }
+          function loadState() {
+              const savedState = sessionStorage.getItem(stateKey);
+              serial = sessionStorage.getItem(serialKey) || '';
+              // Restore active states, otherwise reset
+              if (savedState && savedState !== STATE.IDLE && savedState !== STATE.FLASH_COMPLETE && Object.values(STATE).includes(savedState)) {
+                 currentState = savedState;
+                 console.log("State loaded:", currentState, "Serial:", serial);
+              } else {
+                  currentState = STATE.IDLE;
+                  sessionStorage.removeItem(stateKey);
+                  sessionStorage.removeItem(serialKey);
+              }
+          }
 
-        // ---- OS Switching Logic ----
-        const osButtons = document.querySelectorAll('.os-btn');
+          function clearState() {
+              currentState = STATE.IDLE;
+              currentDevice = null;
+              device = null;
+              serial = '';
+              connectAttempts = 0;
+              sessionStorage.removeItem(stateKey);
+              sessionStorage.removeItem(serialKey);
+              console.log("State cleared");
+              updateUI();
+          }
 
-        function switchOS(os) {
-          instructionsSections.forEach(sec => {
-            // Hide all initially, then show the selected one
-             sec.hidden = true;
-             if (sec.dataset.ins === os) {
-                 sec.hidden = false;
-             }
-          });
-           // Ensure the non-OS specific intro is always shown if JS runs and WebUSB is supported
-           const introSection = document.getElementById('intro-instructions');
-           if (introSection) introSection.hidden = !isWebUsbSupported; // Show only if WebUSB supported
+          // --- UI Update Logic ---
+          function updateStatus(message, type = 'info') {
+              if (!statusDisplay) statusDisplay = document.getElementById("status");
+              if (statusDisplay) {
+                  statusDisplay.textContent = message;
+                  statusDisplay.className = `status-${type}`;
+              }
+               console.log(`Status (${type}): ${message}`);
+          }
 
-          osButtons.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.os === os);
-          });
-          detectedOS = os; // Update detectedOS if user manually switches
-        }
+          function updateUI() {
+              console.log("Updating UI for state:", currentState);
+              if (!connectButton) connectButton = document.getElementById("connect");
+              if (!connectButton) return;
 
-        // Initial setup (only if WebUSB is supported)
-        if (isWebUsbSupported) {
-            switchOS(detectedOS);
-            osButtons.forEach(btn => {
-              btn.addEventListener('click', (e) => {
-                switchOS(e.target.dataset.os);
-              });
-            });
-        } else {
-             // Explicitly hide OS-specific instructions if WebUSB not supported
-             instructionsSections.forEach(sec => {
-                if (sec.dataset.ins) { // Check if it's an OS-specific section
-                    sec.hidden = true;
+              let buttonDisabled = false;
+              let buttonText = "Flash My Critter!";
+
+              switch (currentState) {
+                  case STATE.IDLE:
+                      updateStatus("Ready to connect", "info");
+                      buttonText = firmwareLoaded ? "Flash My Critter!" : "Loading Firmware...";
+                      buttonDisabled = !firmwareLoaded;
+                      break;
+                  case STATE.CONNECTING_STAGE1:
+                  case STATE.CONNECTING_STAGE2:
+                  case STATE.CONNECTING_FLASH:
+                      updateStatus(`Connecting (${currentState})... Check pop-up!`, "info");
+                      buttonText = "Connecting...";
+                      buttonDisabled = true;
+                      break;
+                  case STATE.WAITING_DISCONNECT:
+                      updateStatus("Stage 1 Connected. Switching...", "info");
+                      buttonText = "Wait...";
+                      buttonDisabled = true;
+                      if (dfuUtil) dfuUtil.logInfo("Attempting detach...");
+                      break;
+                   case STATE.PROMPT_REFRESH_1:
+                      updateStatus("Stage 1 Done! Please REFRESH PAGE NOW (Ctrl+R / Cmd+R).", "prompt");
+                      buttonText = "REFRESH PAGE";
+                      buttonDisabled = true;
+                      if (dfuUtil) dfuUtil.logSuccess("Ready for first refresh.");
+                      break;
+                   // *** NEW STATES UI ***
+                   case STATE.PROMPT_CONNECT_STAGE2:
+                       updateStatus("Permission needed for Stage 2.", "prompt");
+                       buttonText = "Connect Stage 2";
+                       buttonDisabled = false; // Enable button for user click
+                       if (dfuUtil) dfuUtil.logWarning("Browser needs permission for Stage 2. Click 'Connect Stage 2'.");
+                       break;
+                   case STATE.PROMPT_CONNECT_FLASH:
+                       updateStatus("Permission needed for Flash.", "prompt");
+                       buttonText = "Connect to Flash";
+                       buttonDisabled = false; // Enable button for user click
+                       if (dfuUtil) dfuUtil.logWarning("Browser needs final permission. Click 'Connect to Flash'.");
+                       break;
+                   // *** END NEW STATES UI ***
+                   case STATE.WAITING_STABLE:
+                        updateStatus("Stage 2 Connected. Stabilizing...", "info");
+                        buttonText = "Wait...";
+                        buttonDisabled = true;
+                        if (dfuUtil) dfuUtil.logInfo("Waiting briefly...");
+                        break;
+                  case STATE.PROMPT_REFRESH_2:
+                      updateStatus("Stage 2 Ready! Please REFRESH PAGE AGAIN.", "prompt");
+                      buttonText = "REFRESH PAGE";
+                      buttonDisabled = true;
+                      if (dfuUtil) dfuUtil.logSuccess("Ready for final refresh.");
+                      break;
+                  case STATE.FLASHING:
+                      updateStatus("Flashing Firmware... Do not disconnect!", "info");
+                      buttonText = "Flashing...";
+                      buttonDisabled = true;
+                       if (dfuUtil) dfuUtil.logInfo("Starting firmware flash...");
+                      break;
+                  case STATE.FLASH_COMPLETE:
+                      updateStatus("Pupdate Complete!", "success");
+                      buttonText = "Done!";
+                      buttonDisabled = true;
+                      if (dfuUtil) dfuUtil.logSuccess("Firmware flashed! Critter should reboot.");
+                       setTimeout(clearState, 5000);
+                      break;
+                  case STATE.ERROR:
+                      buttonText = "Error! Reset?";
+                      buttonDisabled = false;
+                      break;
+                  default:
+                       updateStatus("Unknown state", "error");
+                       buttonDisabled = true;
+              }
+              connectButton.textContent = buttonText;
+              connectButton.disabled = buttonDisabled;
+          }
+
+          function handleError(errorMsg, userMsg = "An error occurred.") {
+              console.error(errorMsg);
+              const messageToLog = (errorMsg instanceof Error) ? errorMsg.message : String(errorMsg);
+              // Avoid logging the user gesture error to the user log area unless debugging
+              if (!(errorMsg instanceof NeedsUserGestureError)) {
+                   if (dfuUtil) dfuUtil.logError(messageToLog);
+              }
+               updateStatus(userMsg, "error");
+              saveState(STATE.ERROR);
+          }
+
+
+          // --- Connection and Flashing Logic ---
+          // Added allowRequestPrompt parameter
+          async function attemptConnection(attemptVid, attemptSerial, allowRequestPrompt = false) {
+                connectAttempts++;
+                if (connectAttempts > MAX_CONNECT_ATTEMPTS) {
+                    throw new Error("Maximum connection attempts reached.");
                 }
-             });
-             const introSection = document.getElementById('intro-instructions');
-             if (introSection) introSection.hidden = true; // Also hide intro if no WebUSB
-        }
-      });
+                dfuUtil.logInfo(`Attempting connection (Attempt ${connectAttempts})... Vid: 0x${attemptVid.toString(16)}, Serial: ${attemptSerial || 'any'}`);
 
+                let filters = [];
+                 if (attemptSerial) { filters.push({ serialNumber: attemptSerial }); }
+                 else if (attemptVid) { filters.push({ vendorId: attemptVid }); }
+                 else { filters.push({ vendorId: 0x2FE3 }); } // Fallback
+
+                // Try permitted devices first
+                const devices = await navigator.usb.getDevices();
+                let matchingDevice = devices.find(d => {
+                    let match = true;
+                    if (attemptVid && d.vendorId !== attemptVid) match = false;
+                    if (attemptSerial && d.serialNumber !== attemptSerial) match = false;
+                    return match && dfu.findDeviceDfuInterfaces(d).length > 0;
+                });
+
+                 if (matchingDevice) {
+                     dfuUtil.logInfo("Found permitted matching device.");
+                     try {
+                        currentDevice = await dfuUtil.connect(matchingDevice);
+                        connectAttempts = 0;
+                        return currentDevice;
+                     } catch (e) {
+                        dfuUtil.logWarning(`Failed to connect to permitted device: ${e}. Trying requestDevice...`);
+                     }
+                 }
+
+                 // If no permitted device found or connection failed...
+                 // Check if we are allowed to prompt the user
+                 if (!allowRequestPrompt) {
+                      dfuUtil.logWarning("Need device permission, but cannot prompt automatically.");
+                      throw new NeedsUserGestureError("Device permission required, user interaction needed.");
+                 }
+
+                 // If allowed, request device from user
+                 dfuUtil.logInfo("Requesting device from user...");
+                 try {
+                    const selectedDevice = await navigator.usb.requestDevice({ filters: filters });
+                    vid = selectedDevice.vendorId;
+                    serial = selectedDevice.serialNumber || '';
+                    sessionStorage.setItem(serialKey, serial);
+
+                    currentDevice = await dfuUtil.connect(selectedDevice);
+                    connectAttempts = 0;
+                    return currentDevice;
+                 } catch(e) {
+                     if (e.name === 'NotFoundError') { throw new Error("No device selected or found."); }
+                     throw e;
+                 }
+          }
+
+
+          async function runFlashWorkflow() {
+               // ... (Flash workflow logic remains the same as previous version) ...
+                if (!currentDevice) { handleError("runFlashWorkflow called with no device.", "Device not connected."); return; }
+                if (currentState !== STATE.FLASHING) { console.warn("runFlashWorkflow called in incorrect state:", currentState); return; }
+                const firmware = dfuUtil.getFirmwareFile();
+                if (!firmware) { handleError("Firmware not loaded.", "Firmware file is missing!"); return; }
+                const transferSize = currentDevice.properties?.TransferSize ?? 1024;
+                const manifestationTolerant = currentDevice.properties?.ManifestationTolerant ?? true;
+                if (currentDevice instanceof dfuse.Device) {
+                    const dfuseStartAddressField = document.getElementById("dfuseStartAddress");
+                    let addr = parseInt(dfuseStartAddressField?.value || "0", 16);
+                    if (!isNaN(addr) && currentDevice.memoryInfo && currentDevice.getSegment(addr)) {
+                         currentDevice.startAddress = addr;
+                         dfuUtil.logInfo(`Using DfuSe start address: 0x${addr.toString(16)}`);
+                    } else if (currentDevice.memoryInfo) {
+                         const firstSegment = currentDevice.getFirstWritableSegment();
+                         if (firstSegment) {
+                             currentDevice.startAddress = firstSegment.start;
+                             dfuUtil.logWarning(`Using default DfuSe start address: 0x${firstSegment.start.toString(16)}`);
+                         } else { handleError("DfuSe device has no writable segment!", "Cannot flash DfuSe device."); return; }
+                     } else { handleError("Could not determine DfuSe start address.", "DfuSe configuration error."); return; }
+                }
+                try {
+                    if (downloadLog) dfuUtil.clearLog(downloadLog);
+                    dfuUtil.logInfo("Starting firmware flash...");
+                    await currentDevice.do_download(transferSize, firmware, manifestationTolerant);
+                    saveState(STATE.FLASH_COMPLETE);
+                } catch (error) { handleError(error, "Flashing process failed!"); }
+            }
+
+
+          // --- Main Button Click Handler ---
+          async function handleConnectClick() {
+              // Reset state?
+              if (currentState === STATE.ERROR) {
+                  clearState();
+                  if (downloadLog) dfuUtil.clearLog(downloadLog);
+                  dfuUtil.logInfo("Resetting state. Please try again.");
+                  return;
+              }
+
+              // Prevent clicks during busy states
+              if ([STATE.CONNECTING_STAGE1, STATE.WAITING_DISCONNECT, STATE.CONNECTING_STAGE2,
+                   STATE.WAITING_STABLE, STATE.CONNECTING_FLASH, STATE.FLASHING,
+                   STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2].includes(currentState)) {
+                   console.warn(`Button clicked in busy/prompt state: ${currentState}`);
+                   return;
+              }
+
+               // Check firmware loaded only on initial connect
+               if (currentState === STATE.IDLE && !firmwareLoaded) {
+                   updateStatus("Firmware still loading...", "info");
+                   return;
+               }
+
+               // --- Handle specific states where user click IS expected ---
+
+               if (currentState === STATE.IDLE) {
+                   // Start the process: Connect Stage 1
+                   connectAttempts = 0;
+                   saveState(STATE.CONNECTING_STAGE1);
+                   if (downloadLog) dfuUtil.clearLog(downloadLog);
+                   try {
+                       currentDevice = await attemptConnection(vid, null, true); // Allow prompt
+                       if (!currentDevice) throw new Error("Device connection failed.");
+                       if (currentDevice.device_.productName !== 'MCUBOOT') {
+                            handleError(`Incorrect device: ${currentDevice.device_.productName}`, "Wrong mode! Check DFU Step 1.");
+                            try { await currentDevice.close(); } catch(e) {}
+                            clearState(); return;
+                       }
+                       dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Stage 1).`);
+                       serial = currentDevice.device_.serialNumber || '';
+                       dfuUtil.logInfo("Waiting briefly before detaching...");
+                       await new Promise(resolve => setTimeout(resolve, 250));
+                       saveState(STATE.WAITING_DISCONNECT, serial);
+                       await currentDevice.detach();
+                       dfuUtil.logInfo("Detach command sent. Waiting for disconnect...");
+                       // --- Add disconnect timeout ---
+                       await Promise.race([
+                           currentDevice.waitDisconnected(5000),
+                           new Promise((_, reject) => setTimeout(() => reject(new Error("waitDisconnected timeout")), 5000))
+                       ]);
+                       dfuUtil.logInfo("Device disconnected (or timed out waiting).");
+                       if (currentState === STATE.WAITING_DISCONNECT) { saveState(STATE.PROMPT_REFRESH_1, serial); }
+                   } catch (error) {
+                       if (error.message?.toLowerCase().includes("stall")) { handleError(error, "Device stalled. Try again."); }
+                       else if (error.message?.includes("waitDisconnected timeout")) { if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logWarning("waitDisconnected timed out, proceeding."); saveState(STATE.PROMPT_REFRESH_1, serial); } }
+                       else if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); clearState(); }
+                       else { handleError(error, "Connection failed (Stage 1)."); }
+                       if (currentDevice) { try { await currentDevice.close(); } catch(e) {} currentDevice = device = null; }
+                       if (currentState !== STATE.IDLE && currentState !== STATE.ERROR) { saveState(STATE.ERROR); }
+                   }
+
+               } else if (currentState === STATE.PROMPT_CONNECT_STAGE2) {
+                    // User clicked "Connect Stage 2"
+                    saveState(STATE.CONNECTING_STAGE2, serial);
+                    try {
+                        currentDevice = await attemptConnection(vid, serial, true); // Allow prompt
+                        if (!currentDevice) throw new Error("Stage 2 connection failed.");
+                        dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Stage 2).`);
+                        saveState(STATE.WAITING_STABLE, serial);
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        try { let status = await currentDevice.getStatus(); if (status.state === dfu.dfuERROR) { await currentDevice.clearStatus(); dfuUtil.logInfo("Cleared error state."); }} catch (e) { dfuUtil.logWarning("Couldn't check/clear status: " + e); }
+                        saveState(STATE.PROMPT_REFRESH_2, serial);
+                    } catch (error) {
+                        handleError(error, "Connection failed (Stage 2).");
+                        // Don't clear state, let user reset from error
+                    }
+
+               } else if (currentState === STATE.PROMPT_CONNECT_FLASH) {
+                    // User clicked "Connect to Flash"
+                    saveState(STATE.CONNECTING_FLASH, serial);
+                    try {
+                        currentDevice = await attemptConnection(vid, serial, true); // Allow prompt
+                        if (!currentDevice) throw new Error("Final connection failed.");
+                        dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Ready!).`);
+                        saveState(STATE.FLASHING, serial);
+                        await runFlashWorkflow(); // Run the flashing
+                    } catch (error) {
+                        handleError(error, "Connection failed (Final).");
+                        // Don't clear state, let user reset from error
+                    }
+               }
+          } // End handleConnectClick
+
+
+           // --- Logic to run automatically after page refresh ---
+           async function runAutoConnectSequence() {
+                console.log("Running auto-connect sequence for state:", currentState);
+                if (currentState === STATE.PROMPT_REFRESH_1) {
+                     saveState(STATE.CONNECTING_STAGE2, serial); // Assume connecting
+                     try {
+                          // Attempt connection, but DO NOT allow prompt automatically
+                          currentDevice = await attemptConnection(vid, serial, false); // allowRequestPrompt = false
+                          if (!currentDevice) throw new Error("Stage 2 connection failed.");
+                          dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Stage 2).`);
+                          saveState(STATE.WAITING_STABLE, serial);
+                          await new Promise(resolve => setTimeout(resolve, 1500));
+                          try { let status = await currentDevice.getStatus(); if (status.state === dfu.dfuERROR) { await currentDevice.clearStatus(); dfuUtil.logInfo("Cleared error state."); }} catch (e) { dfuUtil.logWarning("Couldn't check/clear status: " + e); }
+                          saveState(STATE.PROMPT_REFRESH_2, serial); // Proceed to next prompt
+                     } catch (error) {
+                          if (error instanceof NeedsUserGestureError) {
+                               // *** THIS IS THE NEW HANDLING ***
+                               // We expected to connect automatically but couldn't (likely permissions cleared)
+                               saveState(STATE.PROMPT_CONNECT_STAGE2, serial); // Ask user to click
+                          } else {
+                              // Handle other errors as before
+                              handleError(error, "Connection failed (Stage 2).");
+                          }
+                     }
+
+                 } else if (currentState === STATE.PROMPT_REFRESH_2) {
+                      saveState(STATE.CONNECTING_FLASH, serial); // Assume connecting
+                      try {
+                           // Attempt connection, but DO NOT allow prompt automatically
+                           currentDevice = await attemptConnection(vid, serial, false); // allowRequestPrompt = false
+                           if (!currentDevice) throw new Error("Final connection failed.");
+                           dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Ready!).`);
+                           saveState(STATE.FLASHING, serial);
+                           await runFlashWorkflow();
+                      } catch (error) {
+                           if (error instanceof NeedsUserGestureError) {
+                               // Ask user to click for final connection permission
+                               saveState(STATE.PROMPT_CONNECT_FLASH, serial);
+                           } else {
+                               handleError(error, "Connection failed (Final).");
+                           }
+                      }
+                 } else {
+                      console.log("No automatic action needed for state:", currentState);
+                 }
+           }
+
+          // --- Initialization ---
+          function initializePage() {
+               console.log("Initializing page...");
+               connectButton = document.getElementById("connect");
+               statusDisplay = document.getElementById("status");
+               downloadLog = document.getElementById("downloadLog");
+               const ua = navigator.userAgent;
+               const detectedOS = /Win/.test(ua) ? "win" : /Linux/.test(ua) ? "linux" : "mac";
+               const isWebUsbSupported = typeof navigator.usb !== 'undefined';
+               const webUsbNotice = document.getElementById("browserNotice");
+               const readFirstWarning = document.getElementById("readFirstWarning");
+               const flashSection = document.getElementById("flashSection");
+               const osToggle = document.querySelector(".os-toggle");
+               const instructionsSections = document.querySelectorAll('section.instructions');
+               const introSection = document.getElementById('intro-instructions');
+
+               // --- UI Setup based on WebUSB support ---
+               if (!isWebUsbSupported) {
+                   if (webUsbNotice) { webUsbNotice.innerHTML = `<p><strong>Woof! This browser can't do WebUSB tricks.</strong></p><p>Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on a desktop computer (Windows, macOS, Linux) to flash your Critter.</p><a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Get Chrome</a> <a class="download-btn" href="https://www.microsoft.com/edge" target="_blank" rel="noopener" style="margin-left: 10px;">Get Edge</a>`; webUsbNotice.hidden = false; }
+                   if (flashSection) flashSection.hidden = true;
+                   if (osToggle) osToggle.hidden = true;
+                   instructionsSections.forEach(inst => inst.hidden = true);
+                   if (readFirstWarning) readFirstWarning.hidden = true;
+                   return; // Stop initialization
+               } else {
+                   if (webUsbNotice) webUsbNotice.hidden = true;
+                   if (readFirstWarning) readFirstWarning.hidden = false;
+               }
+
+               // --- DFU Util Setup ---
+              if (typeof dfuUtil === 'undefined') { console.error("dfuUtil missing!"); handleError("Page setup error."); return; }
+              dfuUtil.init();
+              dfuUtil.setLogContext(downloadLog);
+              dfuUtil.setOnDisconnectCallback((reason) => {
+                  console.log("Disconnect callback received:", reason, "Current state:", currentState);
+                   if (currentState === STATE.WAITING_DISCONNECT) {
+                        dfuUtil.logInfo("Device disconnected as expected after detach.");
+                        saveState(STATE.PROMPT_REFRESH_1, serial);
+                   } else if ( ![STATE.FLASH_COMPLETE, STATE.IDLE, STATE.ERROR, STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, STATE.PROMPT_CONNECT_STAGE2, STATE.PROMPT_CONNECT_FLASH].includes(currentState) )
+                   { // Only error on unexpected disconnect during active phases
+                       handleError("Device disconnected unexpectedly.", "Device disconnected!");
+                   }
+              });
+
+              // --- Firmware Loading ---
+              if (connectButton) connectButton.disabled = true;
+              updateStatus("Loading firmware...", "info");
+              dfuUtil.loadFirmware("zephyr.signed.bin")
+                 .then(() => {
+                      firmwareLoaded = true; dfuUtil.logInfo("Firmware ready.");
+                      if (currentState === STATE.IDLE) { updateUI(); }
+                  })
+                 .catch(err => {
+                     firmwareLoaded = false; handleError(err, "Could not load firmware!");
+                 });
+
+              // --- Initial State & UI ---
+              loadState(); // Load state from sessionStorage
+              if (!connectButton) { console.error("Connect button lost!"); return; }
+              connectButton.addEventListener('click', handleConnectClick);
+
+              // --- OS Switcher ---
+              const osButtons = document.querySelectorAll('.os-btn');
+              function switchOS(os) {
+                 if (!instructionsSections || !introSection || !osButtons.length) return;
+                 instructionsSections.forEach(sec => { sec.hidden = true; if (sec.dataset.ins === os) { sec.hidden = false; } });
+                 introSection.hidden = false;
+                 osButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.os === os); });
+              }
+              switchOS(detectedOS);
+              osButtons.forEach(btn => { btn.addEventListener('click', (e) => { switchOS(e.target.dataset.os); }); });
+
+              // --- Auto-Connect Sequence (Delayed) ---
+              setTimeout(runAutoConnectSequence, 500);
+
+          } // End initializePage
+          document.addEventListener("DOMContentLoaded", initializePage);
+      })(); // End main IIFE
     </script>
   </head>
 
@@ -383,34 +796,39 @@
           <p><strong>Hold Your Critters!</strong> 🐴 Before you click that flash button, please take a moment to read through *all* the instructions below for your operating system (use the buttons to switch). There's important info (like driver setup and the special refresh dance!) that'll save you time and make sure your Critter gets its pupdate smoothly. Thanks!</p>
       </div>
 
-
       <section id="flashSection" class="card">
         <h2>Flash Your Critter</h2>
-        <p style="text-align: center;">Connect your μCritter in DFU mode (see Step 1 below) and click the button!</p>
+        <p style="text-align: center;">Connect your μCritter in DFU mode (see Step 1 below) and follow the prompts!</p>
         <p style="text-align: center;">
-          <button id="connect">Flash My Critter!</button> <span id="status"></span>
+          <button id="connect">Flash My Critter!</button>
+          <span id="status"></span>
         </p>
 
         <dialog id="interfaceDialog">
-          <p>Your device has multiple DFU interfaces. Pick one, any one:</p>
-          <form id="interfaceForm" method="dialog">
-            <button id="selectInterface" type="submit">Use This Interface</button>
-            <button type="button" onclick="this.closest('dialog').close('cancelled')">Cancel</button>
-          </form>
+           <p>Your device has multiple DFU interfaces. Pick one, any one:</p>
+           <form id="interfaceForm" method="dialog">
+               {/* Radio buttons populated by JS */}
+               <button id="selectInterface" type="submit">Use This Interface</button>
+               <button type="button" onclick="this.closest('dialog').close('cancelled')">Cancel</button>
+           </form>
         </dialog>
-
-        <div id="usbInfo" style="display: none;"></div> <fieldset>
+        <div id="usbInfo" style="display: none;"></div>
+        <fieldset>
           <legend>Update Progress</legend>
-           <div id="dfuseFields" hidden> <label> DfuSe Start Address: <input type="text" id="dfuseStartAddress" size="10" pattern="0x[A-Fa-f0-9]+" placeholder="e.g., 0x08000000"/> </label>
+           <div id="dfuseFields" hidden>
+            <label> DfuSe Start Address: <input type="text" id="dfuseStartAddress" size="10" pattern="0x[A-Fa-f0-9]+" placeholder="e.g., 0x08000000"/> </label>
             <label> DfuSe Upload Size: <input type="number" id="dfuseUploadSize" min="1" placeholder="Bytes" /> </label>
            </div>
-           <form id="configForm"> <div class="log" id="downloadLog">Waiting for Critter connection...</div>
+           <form id="configForm">
+                <div class="log" id="downloadLog">Waiting for Critter connection...</div>
            </form>
         </fieldset>
       </section>
 
-      <div class="os-toggle container card"> <span>Need Help? Show Instructions For:</span>
-        <div> <button class="os-btn" data-os="mac">macOS</button>
+      <div class="os-toggle container card">
+        <span>Need Help? Show Instructions For:</span>
+        <div>
+            <button class="os-btn" data-os="mac">macOS</button>
             <button class="os-btn" data-os="win">Windows</button>
             <button class="os-btn" data-os="linux">Linux</button>
         </div>
@@ -418,143 +836,102 @@
 
       <section id="intro-instructions" class="instructions card">
           <h2>Step 1: Get Your Critter into DFU Mode</h2>
-          <div class="note-box" id="dfu-methods-intro"> <p><strong>Important:</strong> Your μCritter needs to be in its special "Device Firmware Update" (DFU) mode to receive the new firmware. Pick <strong>ONE</strong> of the following ways to enter DFU mode. You'll know it worked when you see the <strong>DFU Bootloader</strong> screen.</p>
+          <div class="note-box" id="dfu-methods-intro">
+              <p><strong>Important:</strong> Your μCritter needs to be in its special "Device Firmware Update" (DFU) mode to receive the new firmware. Pick <strong>ONE</strong> of the following ways to enter DFU mode. You'll know it worked when you see the <strong>DFU Bootloader</strong> screen.</p>
           </div>
           <ul>
-            <li>
-              <strong>The Paperclip Poke:</strong> Gently insert a paperclip (or similar) into the tiny reset hole above the speaker. Keep it pressed while *also* holding down <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>. Release the paperclip first, then the buttons. Voilà!
-            </li>
-            <li>
-              <strong>The Sleepy Wake-up:</strong> Is your Critter asleep? Wake it up by pressing any button, but make sure you're *also* holding down <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd> as it wakes.
-            </li>
-             <li>
-              <strong>The Menu Nap:</strong> Navigate the menu to <code>Power</code> → <code>Sleep</code>. Let it nod off, then wake it using the "Sleepy Wake-up" method above (wake while holding <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>).
-            </li>
+            <li><strong>The Paperclip Poke:</strong> Gently insert a paperclip (or similar) into the tiny reset hole above the speaker. Keep it pressed while *also* holding down <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>. Release the paperclip first, then the buttons. Voilà!</li>
+            <li><strong>The Sleepy Wake-up:</strong> Is your Critter asleep? Wake it up by pressing any button, but make sure you're *also* holding down <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd> as it wakes.</li>
+            <li><strong>The Menu Nap:</strong> Navigate the menu to <code>Power</code> → <code>Sleep</code>. Let it nod off, then wake it using the "Sleepy Wake-up" method above (wake while holding <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>).</li>
           </ul>
           <p><strong>Once you see the DFU Bootloader screen, connect your μCritter to the computer with a USB cable.</strong> Now you're ready for the OS-specific steps below!</p>
-           <div class="note-box"> <p><em>Why the fuss with refreshes later?</em> The μCritter has a two-stage bootloader (MCUBOOT) for safety. Your computer needs to talk to both stages, which sometimes requires a couple of page refreshes during the connection process. Reading the steps carefully helps avoid confusion!</p>
+           <div class="note-box">
+               <p><em>Why the fuss with refreshes later?</em> The μCritter has a two-stage bootloader (MCUBOOT) for safety. Your computer needs to talk to both stages, which sometimes requires a couple of page refreshes during the connection process. Follow the on-screen prompts carefully!</p>
            </div>
       </section>
 
-
       <section class="instructions card" data-ins="mac" hidden>
         <h2>Step 2: macOS Flashing Dance</h2>
-        <p>Okay, Mac users! Because of the two-stage bootloader, we need to do a little connect-refresh-connect shuffle. Follow carefully!</p>
+        <p>Okay, Mac users! Because of the two-stage bootloader, we need to do a little connect-refresh-connect shuffle. The page will guide you!</p>
         <ol>
           <li>Make sure your Critter is connected via USB and showing the DFU Bootloader screen.</li>
-          <li>Click the big orange <strong>"Flash My Critter!"</strong> button above.</li>
-          <li>A browser pop-up appears. Select the device named <code>MCUBOOT</code> and click <strong>Connect</strong>.
+          <li>Click the big orange <strong>"Flash My Critter!"</strong> button above (or other prompt text it shows).</li>
+          <li>A browser pop-up appears *if needed*. Select <code>MCUBOOT</code> and click <strong>Connect</strong>.
              <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code> in the list, your Critter isn't in DFU mode! Go back to Step 1 and try entering DFU mode again before continuing.</div>
           </li>
-          <li><em>Poof!</em> The connection might drop immediately ("Device disconnected"). That's NORMAL! Stage 1 just handed off to Stage 2.</li>
-          <li>Wait a few seconds... then <strong>Refresh this web page</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>).</li>
-          <li>Click <strong>"Flash My Critter!"</strong> again. Select <code>MCUBOOT</code> in the pop-up again.</li>
-          <li>You might see a brief <code>STALL</code> error in the progress log. Patience, young grasshopper.</li>
-          <li>Wait a moment... then <strong>Refresh the page ONE MORE TIME</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>).</li>
-          <li>Click <strong>"Flash My Critter!"</strong> a final time. It should now connect properly, and the flashing will begin automatically! Watch the progress log.</li>
+          <li>The status message above the button will tell you when to <strong>Refresh this web page</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>). Follow the prompt!</li>
+          <li>After refreshing, if prompted, click the button again (it might say "Connect Stage 2") and select <code>MCUBOOT</code> again if the pop-up appears.</li>
+          <li>The status message will tell you when to <strong>Refresh the page ONE MORE TIME</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>). Follow the prompt!</li>
+          <li>After the final refresh, if prompted, click the button again (it might say "Connect to Flash"). Flashing should begin automatically!</li>
         </ol>
-         <p><strong>Did it work?</strong> Once flashing completes, your Critter should automatically reboot, ready for action! You can optionally check Chrome's site permissions (puzzle piece/sliders icon in address bar) – you should see two `MCUBOOT` devices listed under USB permissions.</p>
+         <p><strong>Did it work?</strong> Watch the progress log. Once flashing completes, your Critter should automatically reboot, ready for action!</p>
       </section>
 
       <section class="instructions card" data-ins="win" hidden>
-        <h2>Step 2: Windows Driver Wrangling (One-Time Setup)</h2>
-        <p>Howdy, Windows user! We need to quickly introduce Windows to your Critter's DFU mode using a tool called Zadig. You only need to do this once!</p>
-        <h3>A. Install the WinUSB Driver with Zadig</h3>
+        <h2>Step 2: Windows Driver Wrangling & Flashing Dance</h2>
+        <p>Howdy, Windows user! First, a one-time driver setup using Zadig, then follow the on-screen prompts for the flashing process.</p>
+        <h3>A. Install the WinUSB Driver with Zadig (One-Time Setup)</h3>
         <ol>
-          <li>
-              <strong>Fetch Zadig:</strong> Download the latest version from <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">zadig.akeo.ie</a>. It's a portable tool, no installation required.
-          </li>
-          <li>
-              <strong>Critter in DFU Mode:</strong> Make sure your μCritter is showing its DFU Bootloader screen (using one of the methods from Step 1) and is connected to your PC via USB.
-          </li>
-          <li>
-              <strong>Run Zadig (as Admin):</strong> Right-click the downloaded Zadig file and choose "Run as administrator".
-          </li>
-          <li>
-              <strong>Reveal All Devices:</strong> In Zadig's menu bar, click `Options` → `List All Devices`. Make sure this is checked!
-          </li>
-          <li>
-              <strong>Spot Your Critter:</strong> Find and select <code>MCUBOOT</code> from the dropdown list. Double-check the USB ID is <code>2FE3:0100</code>.
-          </li>
-          <li>
-              <strong>Choose the Right Driver:</strong> Look at the box next to the green arrow. Use the little arrows to select <code>WinUSB</code>. (Crucial! Do NOT pick libusb or anything else).
-          </li>
-          <li>
-              <strong>Install/Replace Driver:</strong> Click the big button that says "Replace Driver" or "Install Driver". Say "Yes" to any prompts.
-          </li>
-          <li>
-              <strong>Done!</strong> Close Zadig once it confirms success. You shouldn't need to do this again for this computer.
-          </li>
+          <li><strong>Fetch Zadig:</strong> Download the latest version from <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">zadig.akeo.ie</a>.</li>
+          <li><strong>Critter in DFU Mode:</strong> Ensure μCritter is in DFU Bootloader mode (Step 1) and connected via USB.</li>
+          <li><strong>Run Zadig (as Admin):</strong> Right-click Zadig, choose "Run as administrator".</li>
+          <li><strong>Reveal All Devices:</strong> In Zadig, `Options` → `List All Devices` (check it).</li>
+          <li><strong>Spot Your Critter:</strong> Select <code>MCUBOOT</code> (USB ID <code>2FE3:0100</code>).</li>
+          <li><strong>Choose the Right Driver:</strong> Ensure <code>WinUSB</code> is selected (NOT libusb etc.).</li>
+          <li><strong>Install/Replace Driver:</strong> Click the button and confirm prompts.</li>
+          <li><strong>Done!</strong> Close Zadig.</li>
         </ol>
-         <div class="note-box"><p><small><strong>Note on Drivers:</strong> Installing the driver for the first stage (<code>2FE3:0100</code>) is usually enough. Windows should automatically use this driver when the device transitions to its second stage too.</small></p></div>
-
+         <div class="note-box"><p><small><strong>Note:</strong> Installing for the first stage (<code>2FE3:0100</code>) is usually enough.</small></p></div>
         <h3>B. Windows Flashing Dance</h3>
-         <p>With the driver ready, it's time for the Windows version of the connect-refresh shuffle:</p>
+         <p>With the driver ready, the page will guide you through the connect-refresh shuffle:</p>
          <ol>
           <li>Make sure your Critter is connected (in DFU mode).</li>
-          <li>Click the big orange <strong>"Flash My Critter!"</strong> button.</li>
-          <li>Select <code>MCUBOOT</code> in the browser pop-up and click <strong>Connect</strong>.
-              <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code> in the list, your Critter isn't in DFU mode! Go back to Step 1 and try entering DFU mode again before continuing.</div>
+          <li>Click the big orange button above (text may vary based on state).</li>
+          <li>Select <code>MCUBOOT</code> in the browser pop-up *if needed* and click <strong>Connect</strong>.
+              <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>, your Critter isn't in DFU mode! Go back to Step 1.</div>
           </li>
-          <li>Connection drops? Perfect! That's the stage 1-to-2 transition.</li>
-          <li>Wait a sec... then <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
-          <li>Click <strong>"Flash My Critter!"</strong> again. Select <code>MCUBOOT</code> again.</li>
-          <li>Ignore any brief <code>STALL</code> errors in the log. Wait a moment.</li>
-          <li><strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
-          <li>Click <strong>"Flash My Critter!"</strong>. Success! Flashing should begin.</li>
+          <li>The status message will tell you when to <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
+          <li>After refreshing, if prompted, click the button again (it might say "Connect Stage 2") and select <code>MCUBOOT</code> again if the pop-up appears.</li>
+          <li>The status message will tell you when to <strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
+          <li>After the final refresh, if prompted, click the button again (it might say "Connect to Flash"). Flashing should begin automatically!</li>
         </ol>
-         <p>Your Critter will reboot automatically when done. High five!</p>
+         <p>Watch the progress log. Your Critter will reboot automatically when done. High five!</p>
       </section>
 
       <section class="instructions card" data-ins="linux" hidden>
-        <h2>Step 2: Linux Permissions (udev Rules)</h2>
-        <p>Alright Linux adventurers, let's grant permission for your browser to talk to the Critter in DFU mode. We'll use a quick `udev` rule.</p>
-        <h3>A. Create the udev Rule</h3>
+        <h2>Step 2: Linux Permissions & Flashing Dance</h2>
+        <p>Alright Linux adventurers! First, a quick `udev` rule setup, then follow the on-screen prompts for flashing.</p>
+        <h3>A. Create the udev Rule (One-Time Setup)</h3>
         <ol>
-          <li>
-            <strong>Open Your Terminal.</strong> (You knew this was coming.)
-          </li>
-          <li>
-            <strong>Edit the Rules File:</strong> We need root privileges. Use `sudo` with your favorite text editor (like `nano`) to create/edit the file:
-            <pre><code class="language-bash">sudo nano /etc/udev/rules.d/51-mcuboot.rules</code></pre>
-          </li>
-          <li>
-              <strong>Paste These Two Lines:</strong> Copy both lines below and paste them into the editor. They cover both DFU stages (Product IDs `0100` and `ffff`).
+          <li><strong>Open Terminal.</strong></li>
+          <li><strong>Edit Rules File:</strong> `sudo nano /etc/udev/rules.d/51-mcuboot.rules`</li>
+          <li><strong>Paste Lines:</strong> Add both lines below:
             <pre><code class="language-text">SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"</code></pre>
-            <div class="note-box"><p><small><strong>Heads up!</strong> Make sure your user is in the `plugdev` group. Check with `groups $USER`. If not listed, add yourself with `sudo usermod -aG plugdev $USER`, then <strong>log out and log back in</strong> for the change to take effect.</small></p></div>
+            <div class="note-box"><p><small><strong>Group Check:</strong> Ensure your user is in `plugdev` group (`groups $USER`). If not: `sudo usermod -aG plugdev $USER`, then log out/in.</small></p></div>
           </li>
-          <li>
-            <strong>Save & Exit Nano:</strong> Press <kbd>Ctrl</kbd>+<kbd>X</kbd>, then <kbd>Y</kbd> to confirm, then <kbd>Enter</kbd> to save.
-          </li>
-          <li>
-              <strong>Tell udev About the New Rules:</strong> Run this command to reload the rules and apply them:
-              <pre><code class="language-bash">sudo udevadm control --reload-rules && sudo udevadm trigger</code></pre>
-          </li>
-          <li>
-              <strong>Re-plug Your Critter:</strong> Unplug the USB cable, then plug it back in. Make sure it's still in DFU mode (or repeat Step 1 if needed).
-          </li>
+          <li><strong>Save & Exit Nano:</strong> <kbd>Ctrl</kbd>+<kbd>X</kbd>, then <kbd>Y</kbd>, then <kbd>Enter</kbd>.</li>
+          <li><strong>Reload Rules:</strong> `sudo udevadm control --reload-rules && sudo udevadm trigger`</li>
+          <li><strong>Re-plug Critter:</strong> Unplug/replug USB while in DFU mode.</li>
         </ol>
-
         <h3>B. Linux Flashing Dance</h3>
-        <p>With permissions granted, let's do the Linux connect-refresh tango:</p>
+        <p>With permissions granted, the page will guide the connect-refresh tango:</p>
          <ol>
           <li>Critter connected? DFU mode active? Good.</li>
-          <li>Click the big orange <strong>"Flash My Critter!"</strong> button.</li>
-          <li>Select <code>MCUBOOT</code> in the browser pop-up, click <strong>Connect</strong>.
-             <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code> in the list, your Critter isn't in DFU mode! Go back to Step 1 and try entering DFU mode again before continuing.</div>
+          <li>Click the big orange button above (text may vary based on state).</li>
+          <li>Select <code>MCUBOOT</code> in the browser pop-up *if needed*, click <strong>Connect</strong>.
+             <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>, your Critter isn't in DFU mode! Go back to Step 1.</div>
           </li>
-          <li>Connection drop? Expected behavior! Stage 1 -> Stage 2.</li>
-          <li>Wait... then <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
-          <li>Click <strong>"Flash My Critter!"</strong> again. Select <code>MCUBOOT</code> again.</li>
-          <li>Ignore temporary <code>STALL</code> errors. Wait a moment.</li>
-          <li><strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5).</li>
-          <li>Click <strong>"Flash My Critter!"</strong>. Blast off! Flashing begins.</li>
+          <li>The status message will tell you when to <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
+          <li>After refreshing, if prompted, click the button again (it might say "Connect Stage 2") and select <code>MCUBOOT</code> again if the pop-up appears.</li>
+          <li>The status message will tell you when to <strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
+          <li>After the final refresh, if prompted, click the button again (it might say "Connect to Flash"). Flashing should begin automatically!</li>
         </ol>
-         <p>Your μCritter will restart itself when the update is complete. Nicely done!</p>
+         <p>Watch the progress log. Your μCritter will restart itself when the update is complete. Nicely done!</p>
       </section>
 
-    </div> <footer class="container"> <p>
+    </div> <footer class="container">
+      <p>
         <a href="https://ucritter.com">← Back to μCritter.com</a> |
         <a href="https://docs.ucritter.com">Critter Docs & Guides</a>
       </p>
