@@ -197,16 +197,16 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", 
                     <li><strong>Check Group Membership:</strong> In the terminal, type <code>groups</code> and press Enter. Check if <code>plugdev</code> is listed.</li>
                     <li><strong>Add to Group (if needed):</strong> If <code>plugdev</code> was NOT listed, run: <br/><code>sudo usermod -aG plugdev $USER</code> <br/>(This adds your current user to the group).</li>
                     <li><strong>Reload Rules:</strong> Run: <br/><code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>
-                    <li><strong>‼️ LOG OUT / LOG IN (CRITICAL if group was added):</strong> If you had to add yourself to the <code>plugdev</code> group in step 6, you **MUST log out completely** from your Linux session and log back in for the group change to take effect! Restarting the browser is not enough.</li>
+                    <li><strong>‼️ LOG OUT / LOG IN (CRITICAL if group was added):</strong> If you had to add yourself to the <code>plugdev</code> group in step 6, you <strong>MUST log out completely</strong> from your Linux session and log back in for the group change to take effect! Restarting the browser is not enough.</li>
                   </ol>
                    <h4>Method 2: Bash One-Liner</h4>
                    <p>This single command does the same thing as the manual steps (creates file, adds user, reloads rules). Copy/paste into your terminal:</p>
                    <pre><code class="language-text" style="font-size: 1.1rem;">echo -e 'SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"\nSUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"' | sudo tee /etc/udev/rules.d/51-mcuboot.rules > /dev/null && sudo usermod -aG plugdev $USER && sudo udevadm control --reload-rules && sudo udevadm trigger && echo "Rule created/updated. Log out/in if you weren't in plugdev group before running this."</code></pre>
                    <div class="note-box">
-                        <p><small><strong>Log Out Required?</strong> If this command added you to the <code>plugdev</code> group (check with <code>groups</code>), you **MUST log out completely** and log back in for permissions to work correctly!</small></p>
+                        <p><small><strong>Log Out Required?</strong> If this command added you to the <code>plugdev</code> group (check with <code>groups</code>), you <strong>MUST log out completely</strong> and log back in for permissions to work correctly!</small></p>
                    </div>
                    <div class="note-box">
-                        <p><strong>Snap/Flatpak Browsers:</strong> If you installed Chromium/Chrome via **Snap** (common on Ubuntu), you might also need to grant it explicit USB access by running: <br/><code>sudo snap connect chromium:raw-usb</code><br/>(Replace `chromium` if needed for Chrome). Restart the browser afterwards. If you use **Flatpak**, check its permissions (e.g., using Flatseal). Sometimes, installing Chrome directly from Google (as a `.deb` package) avoids these sandboxing issues.</p>
+                        <p><strong>Snap/Flatpak Browsers:</strong> If you installed Chromium/Chrome via <strong>Snap</strong> (common on Ubuntu), you might also need to grant it explicit USB access by running: <br/><code>sudo snap connect chromium:raw-usb</code><br/>(Replace `chromium` if needed for Chrome). Restart the browser afterwards. If you use <strong>Flatpak</strong>, check its permissions (e.g., using Flatseal). Sometimes, installing Chrome directly from Google (as a `.deb` package) avoids these sandboxing issues.</p>
                    </div>
 
                   <h3>B. Linux Pupdate Dance! (After Setup & Login)</h3>
