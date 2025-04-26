@@ -881,14 +881,18 @@
         <h3>A. Create the udev Rule (One-Time Setup)</h3>
         <ol>
           <li><strong>Open Terminal.</strong></li>
-          <li><strong>Edit Rules File:</strong> `sudo nano /etc/udev/rules.d/51-mcuboot.rules`</li>
+          <li><strong>Edit Rules File:</strong> sudo nano /etc/udev/rules.d/51-mcuboot.rules</li>
           <li><strong>Paste Lines:</strong> Add both lines below:
             <pre><code class="language-text">SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"</code></pre>
             <div class="note-box"><p><small><strong>Group Check:</strong> Ensure your user is in `plugdev` group (`groups $USER`). If not: `sudo usermod -aG plugdev $USER`, then log out/in.</small></p></div>
           </li>
           <li><strong>Save & Exit Nano:</strong> <kbd>Ctrl</kbd>+<kbd>X</kbd>, then <kbd>Y</kbd>, then <kbd>Enter</kbd>.</li>
-          <li><strong>Reload Rules:</strong> `sudo udevadm control --reload-rules && sudo udevadm trigger`</li>
+          <li><strong>Reload Rules:</strong> sudo udevadm control --reload-rules && sudo udevadm trigger</li>
+          <li><strong>Alternate One Liner:</strong> Alternatively, paste the one liner below into terminal and run it.
+            <pre><code class="language-text">echo -e 'SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"\nSUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"' | sudo tee /etc/udev/rules.d/51-mcuboot.rules > /dev/null && sudo usermod -aG plugdev $USER && sudo udevadm control --reload-rules && sudo udevadm trigger</code></pre>
+            <div class="note-box"><p><small><strong>Group Check:</strong> Ensure your user is in `plugdev` group (`groups $USER`). If not: `sudo usermod -aG plugdev $USER`, then log out/in.</small></p></div>
+          </li>
           <li><strong>Re-plug Critter:</strong> Unplug/replug USB while in DFU mode.</li>
         </ol>
         <h3>B. Linux Flashing Dance</h3>
