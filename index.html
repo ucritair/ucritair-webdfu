@@ -13,7 +13,6 @@
     <link rel="stylesheet" href="pupdate-styles.css" />
 
     <script defer src="dfu.js"></script>
-    <script defer src="dfuse.js"></script>
     <script defer src="dfu-util.js"></script>
     <script defer src="app.js"></script>
 
@@ -60,10 +59,6 @@
 
                     <fieldset>
                         <legend>Pupdate Progress</legend>
-                        <div id="dfuseFields" hidden>
-                            <label> DfuSe Start Address: <input type="text" id="dfuseStartAddress" size="10" pattern="0x[A-Fa-f0-9]+" placeholder="e.g., 0x08000000"/> </label>
-                            <label> DfuSe Upload Size: <input type="number" id="dfuseUploadSize" min="1" placeholder="Bytes" /> </label>
-                        </div>
                         <form id="configForm"> <div class="log" id="downloadLog">Waiting for device connection...</div>
                         </form>
                     </fieldset>

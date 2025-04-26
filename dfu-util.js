@@ -1,5 +1,5 @@
 /* dfu-util.js - Adjusted for external orchestration */
-var device = null; // Keep global 'device' for potential use by dfu.js/dfuse.js internals if they rely on it
+var device = null; // Keep global 'device' for potential use by dfu.js internals if they rely on it
 var dfuUtil = (function() { // Keep IIFE but expose functions
     'use strict';
 
@@ -69,7 +69,7 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
     }
 
 
-    // Expose logging functions to be called from index.html script
+    // Expose logging functions to be called from app.js script
     let logContext = null;
     function setLogContext(div) { logContext = div; }
     function clearLog(context) {
@@ -118,12 +118,11 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
             if (typeof total !== 'undefined') {
                 progressBar.max = total;
             }
-             // Remove progress bar when done? Optional.
-             if (done >= total) {
-                 // Maybe replace with text?
-                 // progressBar.remove();
-                 // logInfo("Progress complete.");
-             }
+             // Optional: Remove progress bar when done?
+             // if (done >= total) {
+             //     progressBar.remove();
+             //     logInfo("Progress complete.");
+             // }
          }
      }
     function logSuccess(msg) { // Make logSuccess available here too
@@ -140,7 +139,6 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
     // Keep DFU descriptor functions
     function getDFUDescriptorProperties(device) {
         // Attempt to read the DFU functional descriptor
-        // TODO: read the selected configuration's descriptor
          if (!device || !device.device_ || !device.settings) return Promise.reject("Invalid device object in getDFUDescriptorProperties");
         return device.readConfigurationDescriptor(0).then(
             data => {
@@ -168,22 +166,23 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
                     };
                 } else {
                     // Return default values or empty object if descriptor not found
+                     console.warn("DFU Functional Descriptor not found. Using defaults.");
                      return {
-                         WillDetach: true, // Assume true if not found? Or false?
-                         ManifestationTolerant: true, // Assume true
-                         CanUpload: true,
+                         WillDetach: true,
+                         ManifestationTolerant: true,
+                         CanUpload: false, // Assume standard DFU cannot upload without descriptor
                          CanDnload: true,
                          TransferSize: 1024, // Default
                          DetachTimeOut: 0,
-                         DFUVersion: 0x0100 // Default
+                         DFUVersion: 0x0100 // Default DFU version 1.0
                      };
                 }
             },
             error => {
                  console.error("Failed to read configuration descriptor:", error);
                  // Return default values on error
-                  return {
-                     WillDetach: true, ManifestationTolerant: true, CanUpload: true,
+                 return {
+                     WillDetach: true, ManifestationTolerant: true, CanUpload: false,
                      CanDnload: true, TransferSize: 1024, DetachTimeOut: 0, DFUVersion: 0x0100
                  };
              }
@@ -193,24 +192,28 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
     async function fixInterfaceNames(device_, interfaces) {
          // Check if any interface names were not read correctly
          if (interfaces.some(intf => (intf.name == null))) {
-             // Manually retrieve the interface name string descriptors
              console.log("Attempting to fix interface names...");
-             // Need a temporary device to open and read descriptors
-             let tempDevice = new dfu.Device(device_, interfaces[0]);
+             let tempDevice = new dfu.Device(device_, interfaces[0]); // Need a temporary device
              try {
                  await tempDevice.device_.open();
+                 // Ensure configuration is selected before reading descriptors
                  if (!tempDevice.device_.configuration) {
-                     await tempDevice.device_.selectConfiguration(1); // Assuming configuration 1
-                 }
+                      const confValue = interfaces[0].configuration.configurationValue;
+                      console.log(`Selecting configuration ${confValue} on temp device...`);
+                      await tempDevice.device_.selectConfiguration(confValue);
+                  } else {
+                       console.log(`Temp device already has configuration ${tempDevice.device_.configuration.configurationValue} selected.`);
+                  }
+
                  let mapping = await tempDevice.readInterfaceNames();
                  await tempDevice.close(); // Close temp device
 
                  for (let intf of interfaces) {
-                     if (intf.name === null) {
+                     if (intf.name === null && mapping) { // Check mapping exists
                          let configIndex = intf.configuration.configurationValue;
                          let intfNumber = intf["interface"].interfaceNumber;
                          let alt = intf.alternate.alternateSetting;
-                         if (mapping && mapping[configIndex] && mapping[configIndex][intfNumber] && mapping[configIndex][intfNumber][alt]) {
+                         if (mapping[configIndex]?.[intfNumber]?.[alt]) {
                              intf.name = mapping[configIndex][intfNumber][alt];
                              console.log(`Fixed name for Cfg ${configIndex}, Intf ${intfNumber}, Alt ${alt}: ${intf.name}`);
                          } else {
@@ -220,16 +223,15 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
                  }
              } catch (error) {
                  console.error("Error fixing interface names:", error);
+                 // Ensure temp device is closed on error, even if open failed partially
                  if (tempDevice && tempDevice.device_.opened) {
-                     await tempDevice.close(); // Ensure temp device is closed on error
+                     try { await tempDevice.close(); } catch (e) { console.error("Error closing temp device:", e); }
                  }
-                 // Proceed without fixed names if necessary
              }
          }
      }
 
-    function populateInterfaceList(form, device_, interfaces) { /* ... as before ... */ }
-
+    // Removed: populateInterfaceList function as the dialog is not used.
 
     let onDisconnectCallback = null; // Callback for disconnect events
 
@@ -239,31 +241,29 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
 
     function onDisconnect(reason) {
         if (onDisconnectCallback) {
-            onDisconnectCallback(reason); // Call the callback set by index.html
+            onDisconnectCallback(reason); // Call the callback set by app.js
         } else {
-            // Default behavior if no callback set (e.g., initial page load before setup)
             console.log("onDisconnect (no callback set):", reason);
         }
-        // Reset internal state
-        device = null; // Clear the global device reference
+        // Reset internal state if needed (clearing 'device' might be handled by app.js now)
+        // device = null;
     }
 
     function onUnexpectedDisconnect(event) {
-        // Access the *global* device variable directly here as it's used for comparison
+        // Use the internal 'device' reference for checking
         if (device !== null && device.device_ !== null) {
             if (device.device_ === event.device) {
                 console.log("Unexpected disconnect detected for current device");
-                if (device.disconnected !== true) { // Prevent multiple calls
-                     device.disconnected = true; // Mark as disconnected
-                     onDisconnect("Device disconnected unexpectedly"); // Trigger the disconnect handler
+                // Prevent multiple calls if disconnect/close is already in progress
+                if (!device.disconnected) {
+                     device.disconnected = true; // Mark as disconnected internally
+                     onDisconnect("Device disconnected unexpectedly"); // Trigger the handler
                 }
             }
         }
     }
 
-    // --- CORE Connect Function (Modified) ---
-    // This now focuses ONLY on establishing the connection and setting up the device object
-    // It returns the dfu.Device object on success.
+    // --- CORE Connect Function (Modified, DfuSe check removed) ---
     async function connect(usbDevice, interfaceIndex = 0) {
         if (!usbDevice) throw new Error("No USB device provided to connect function.");
 
@@ -271,19 +271,21 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
         if (interfaces.length === 0) {
             throw new Error("The selected device does not have any USB DFU interfaces.");
         }
-        if (interfaceIndex >= interfaces.length) {
-             throw new Error(`Selected interface index ${interfaceIndex} is invalid.`);
+        if (interfaceIndex < 0 || interfaceIndex >= interfaces.length) {
+             console.warn(`Invalid interface index ${interfaceIndex}, using 0.`);
+             interfaceIndex = 0;
+             // Optionally throw: throw new Error(`Selected interface index ${interfaceIndex} is invalid.`);
         }
 
         // Fix names before creating the dfu.Device if needed
-         // Don't await here, let it run in background or make it synchronous if possible
-        fixInterfaceNames(usbDevice, interfaces).catch(err => console.warn("Failed to fix interface names:", err)); // Run async but don't block connection
+        // Run async but don't block connection
+        fixInterfaceNames(usbDevice, interfaces).catch(err => console.warn("Failed to fix interface names:", err));
 
         // Create the specific DFU device object
+        // Always use dfu.Device now
         let dfuDevice = new dfu.Device(usbDevice, interfaces[interfaceIndex]);
 
         try {
-            // *** ADDED DELAY HERE ***
             console.log("Waiting briefly before opening device...");
             await new Promise(resolve => setTimeout(resolve, 200)); // 200ms delay
 
@@ -291,7 +293,6 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
             await dfuDevice.open();
             console.log("Device opened.");
         } catch (error) {
-            // Don't call onDisconnect here, let the caller handle UI
             console.error("Failed to open device:", error);
             throw error; // Rethrow for the caller
         }
@@ -301,32 +302,15 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
             console.log("Getting DFU properties...");
             desc = await getDFUDescriptorProperties(dfuDevice);
              console.log("DFU properties:", desc);
+             // Store properties on the device object
+             dfuDevice.properties = desc;
         } catch (error) {
-             // Don't disconnect here, let the caller handle it
-            console.warn("Could not get DFU properties: " + error);
-             // Proceed anyway, might be a non-standard DFU device
+             console.warn("Could not get DFU properties: " + error);
+             // Proceed anyway, might be a non-standard DFU device or handled later
         }
 
-        // Store properties and check for DfuSe
-        if (desc && Object.keys(desc).length > 0) {
-            dfuDevice.properties = desc;
-             // Check for DfuSe device AFTER getting properties
-             if (desc.DFUVersion == 0x011a && dfuDevice.settings.alternate.interfaceProtocol == 0x02) {
-                console.log("Detected DfuSe device");
-                // Re-create device as dfuse.Device, passing existing device and settings
-                // Make sure dfuse.Device is available globally or passed in
-                if (typeof dfuse !== 'undefined' && typeof dfuse.Device === 'function') {
-                     dfuDevice = new dfuse.Device(dfuDevice.device_, dfuDevice.settings);
-                    // dfuse constructor parses memory info from settings.name
-                     console.log("Memory Info:", dfuDevice.memoryInfo);
-                 } else {
-                     console.error("dfuse.Device is not defined!");
-                 }
-             }
-        } else {
-            console.warn("DFU functional descriptor not found or properties empty.");
-        }
-
+        // --- REMOVED DfuSe Check ---
+        // No need to check DFUVersion or re-instantiate as dfuse.Device
 
         // Bind logging methods from this closure
         dfuDevice.logDebug = logDebug;
@@ -334,13 +318,12 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
         dfuDevice.logWarning = logWarning;
         dfuDevice.logError = logError;
         dfuDevice.logProgress = logProgress;
-        dfuDevice.logSuccess = logSuccess; // Add success log
+        dfuDevice.logSuccess = logSuccess;
 
-
-        // Set the global device variable (important for onUnexpectedDisconnect)
+        // Set the internal device variable (important for onUnexpectedDisconnect)
         device = dfuDevice;
         console.log("Device connection established:", device);
-        return device; // Return the device object
+        return device; // Return the dfu.Device object
     }
 
 
@@ -350,27 +333,37 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
         return new Promise((resolve, reject) => {
             let firmwareReader = new FileReader();
             firmwareReader.onloadend = function() {
-                firmwareFile = firmwareReader.result;
-                console.log(`Firmware loaded (${firmwareFile?.byteLength || 0} bytes)`);
-                resolve(firmwareFile);
+                if (firmwareReader.result && firmwareReader.result.byteLength > 0) {
+                     firmwareFile = firmwareReader.result;
+                     console.log(`Firmware loaded (${firmwareFile.byteLength} bytes)`);
+                     resolve(firmwareFile);
+                } else {
+                     console.error("Firmware loading error: Empty or invalid file content.");
+                     firmwareFile = null;
+                     reject(new Error("Failed to read firmware: Empty file content"));
+                }
             };
              firmwareReader.onerror = function(err) {
                  console.error("Firmware loading error:", err);
                  firmwareFile = null;
-                 reject(new Error("Failed to read firmware file from blob"));
+                 reject(new Error(`Failed to read firmware file: ${err}`));
              };
 
              console.log("Fetching firmware from:", url);
             fetch(url)
                 .then(resp => {
                     if (!resp.ok) {
-                        throw new Error(`HTTP error! status: ${resp.status} while fetching ${url}`);
+                        throw new Error(`HTTP error ${resp.status} while fetching ${url}`);
+                    }
+                    if (resp.headers.get("content-length") === "0") {
+                         throw new Error("Firmware file is empty (Content-Length is 0).");
                     }
                     return resp.blob();
                 })
                 .then(blob => {
                      if (blob.size === 0) {
-                         throw new Error("Fetched firmware blob is empty.");
+                         // Double check blob size after fetch resolves
+                         throw new Error("Fetched firmware blob is empty (blob.size is 0).");
                      }
                     firmwareReader.readAsArrayBuffer(blob);
                 })
@@ -394,7 +387,7 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
              console.log("Disconnect listener added.");
         } else {
              console.warn('WebUSB not available.');
-             // UI update for no WebUSB is handled in index.html
+             // UI update for no WebUSB is handled in app.js now
         }
     }
 
@@ -405,7 +398,7 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
         connect: connect, // Expose the core connect function
         loadFirmware: loadFirmware, // Expose firmware loader
         getFirmwareFile: getFirmwareFile, // Expose firmware getter
-        setOnDisconnectCallback: setOnDisconnectCallback, // Allow index.html to handle disconnects
+        setOnDisconnectCallback: setOnDisconnectCallback, // Allow app.js to handle disconnects
         setLogContext: setLogContext, // Expose log context setter
         logInfo: logInfo, // Expose logging functions
         logWarning: logWarning,
@@ -413,13 +406,9 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
         logProgress: logProgress,
         logSuccess: logSuccess,
         clearLog: clearLog, // Expose log clearing
-        getDevice: function() { return device; }, // Way to get current *global* device reference
-        // Expose helpers if needed by index.html
-        // formatDFUSummary: formatDFUSummary,
+        getDevice: function() { return device; }, // Way to get current internal device reference
+        // formatDFUSummary: formatDFUSummary, // Expose helpers if needed
         // niceSize: niceSize,
     };
 
 })();
-
-// Initialize basic listeners on script load
-dfuUtil.init();
