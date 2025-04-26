@@ -46,6 +46,12 @@
         }
     }
 
+    // --- Helper: Short Delay ---
+    async function sleep(duration_ms) {
+        return new Promise(resolve => setTimeout(resolve, duration_ms));
+    }
+
+
     // --- State Management Functions ---
     function saveState(stateToSave, deviceSerial = serial) {
         if (!Object.values(STATE).includes(stateToSave)) {
@@ -304,19 +310,20 @@
 
           dfuUtil.logInfo(`Connection attempt ${connectAttempts}: VID=0x${attemptVid.toString(16)}, Serial=${attemptSerial || 'any'}, PromptAllowed=${allowRequestPrompt}`);
 
-          // Define filters based on provided VID/Serial
-          const filters = [{ vendorId: attemptVid }];
+          // Define filter for checking existing permitted devices (always include serial if available)
+          const permittedDeviceFilter = [{ vendorId: attemptVid }];
           if (attemptSerial) {
-              filters[0].serialNumber = attemptSerial;
+              permittedDeviceFilter[0].serialNumber = attemptSerial;
           }
 
           // 1. Check already permitted devices
           try {
               const devices = await navigator.usb.getDevices();
-              dfuUtil.logInfo(`Found ${devices.length} permitted devices. Checking for match...`);
+              dfuUtil.logInfo(`Found ${devices.length} permitted devices. Checking for match using filter: ${JSON.stringify(permittedDeviceFilter)}`);
               const matchingDevice = devices.find(d => {
                   let vidMatch = d.vendorId === attemptVid;
-                  let serialMatch = !attemptSerial || d.serialNumber === attemptSerial;
+                  // Only check serial if it was provided in the filter
+                  let serialMatch = !permittedDeviceFilter[0].serialNumber || d.serialNumber === permittedDeviceFilter[0].serialNumber;
                   // Check if the device exposes *any* DFU interface using the library function
                   let dfuCapable = dfu.findDeviceDfuInterfaces(d).length > 0;
                   return vidMatch && serialMatch && dfuCapable;
@@ -334,22 +341,28 @@
                    dfuUtil.logInfo("No matching permitted device found.");
               }
           } catch (error) {
-              dfuUtil.logWarning(`Error checking permitted devices: ${error.message}. Proceeding to request prompt if allowed.`);
+              // Log more specific error if possible
+              dfuUtil.logWarning(`Error checking permitted devices: ${error.message || error}. Proceeding to request prompt if allowed.`);
           }
 
           // 2. If no permitted device found/connected, request permission if allowed
           if (!allowRequestPrompt) {
-                dfuUtil.logWarning("Device permission required, but cannot prompt automatically in this state.");
+                dfuUtil.logWarning("Device permission required, but cannot prompt automatically in this state (likely requires user click).");
                 throw new NeedsUserGestureError("Device permission required, user interaction needed.");
            }
 
-           dfuUtil.logInfo("Requesting device permission from user...");
+           // Define the filter for the *user prompt*.
+           // Use ONLY Vendor ID for the prompt to broaden detection chances after PID change.
+           const promptFilter = [{ vendorId: attemptVid }];
+           dfuUtil.logInfo(`Requesting device permission from user with filter: ${JSON.stringify(promptFilter)}`);
+
            try {
-              // Prompt user to select a device
-              const selectedUsbDevice = await navigator.usb.requestDevice({ filters: filters });
+              // Prompt user to select a device using the modified filter
+              const selectedUsbDevice = await navigator.usb.requestDevice({ filters: promptFilter }); // Use promptFilter here
+
               // Update VID and Serial based on user selection, as it might differ slightly
-              vid = selectedUsbDevice.vendorId;
-              serial = selectedUsbDevice.serialNumber || '';
+              vid = selectedUsbDevice.vendorId; // Update VID just in case (should be the same)
+              serial = selectedUsbDevice.serialNumber || ''; // Update serial based on selection
               sessionStorage.setItem(serialKey, serial); // Save potentially new serial
 
               dfuUtil.logInfo(`User selected device: ${selectedUsbDevice.productName || 'Unknown'} (VID: 0x${vid.toString(16)}, Serial: ${serial || 'N/A'})`);
@@ -363,12 +376,19 @@
            } catch(error) {
                // Handle specific errors from requestDevice
                if (error.name === 'NotFoundError') {
-                   throw new Error("No device selected or found by the user.");
+                   // Check if filters were used - if so, maybe device wasn't seen by Chrome *at all*
+                   if (promptFilter && promptFilter.length > 0) {
+                        dfuUtil.logError("Device selection prompt failed: No matching device found by Chrome, even though OS might see it.");
+                        throw new Error("No matching device found by Chrome. Check OS/driver or connection.");
+                   } else {
+                        // If no filters used (shouldn't happen here), means user cancelled
+                        throw new Error("No device selected by the user.");
+                   }
                } else if (error.name === 'SecurityError') {
                     throw new Error("Device request blocked by browser security settings (requires secure context/HTTPS).");
                }
                // Rethrow other errors (like connection issues after selection)
-               throw new Error(`Error requesting/connecting device: ${error.message}`);
+               throw new Error(`Error requesting/connecting device: ${error.message || error}`);
            }
     }
 
@@ -497,7 +517,7 @@
 
                  // Detach sequence
                  dfuUtil.logInfo("Waiting briefly before detaching for mode switch...");
-                 await new Promise(resolve => setTimeout(resolve, 300)); // Short delay
+                 await sleep(300); // Short delay using helper
 
                  saveState(STATE.WAITING_DISCONNECT, serial); // Update state before detach command
                  await currentDevice.detach();
@@ -532,6 +552,11 @@
                        dfuUtil.logWarning("Device selection cancelled by user.");
                        clearState(); // Reset to idle if user cancels
                   }
+                   else if (error.message?.includes("No matching device found")) {
+                        // Handle the specific error from attemptConnection when filter fails
+                        handleError(error, "Connection failed: No matching device found by Chrome.");
+                        clearState(); // Reset to idle
+                   }
                   else if (error instanceof NeedsUserGestureError) {
                        // This shouldn't happen here as allowRequestPrompt=true, but handle defensively
                        dfuUtil.logWarning("User gesture needed unexpectedly during Stage 1.");
@@ -546,7 +571,7 @@
                   }
                    else {
                        // General error handling
-                       handleError(error, `Connection failed (Stage 1): ${error.message}`);
+                       handleError(error, `Connection failed (Stage 1): ${error.message || error}`);
                    }
 
                   // Cleanup: Ensure device is closed if an error occurred mid-process, unless already handled
@@ -567,13 +592,18 @@
               saveState(STATE.CONNECTING_STAGE2, serial); // Update state
               dfuUtil.logInfo("Attempting Stage 2 connection after user click...");
               try {
+                  // --- ADD DELAY ---
+                  dfuUtil.logInfo("Waiting briefly before requesting device (Stage 2)...");
+                  await sleep(500); // 500ms delay
+                  // --- END DELAY ---
+
                   // Allow user prompt again for this stage, using stored serial
                   await attemptConnection(vid, serial, true);
                   // No need to check currentDevice, error thrown on failure or updates it
 
                   dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`);
                   saveState(STATE.WAITING_STABLE, serial);
-                  await new Promise(resolve => setTimeout(resolve, 1500)); // Wait for device stability
+                  await sleep(1500); // Wait for device stability using helper
 
                   // Attempt to clear any lingering error status from DFU device
                   try {
@@ -597,8 +627,12 @@
                    if (error.message?.includes("No device selected")) {
                        dfuUtil.logWarning("Device selection cancelled by user.");
                        saveState(STATE.PROMPT_CONNECT_STAGE2); // Go back to waiting for click
+                   } else if (error.message?.includes("No matching device found")) {
+                        // Handle the specific error from attemptConnection when filter fails
+                        handleError(error, "Connection failed: No matching device found by Chrome for Stage 2.");
+                        saveState(STATE.PROMPT_CONNECT_STAGE2); // Go back to waiting for click
                    } else {
-                       handleError(error, `Connection failed (Stage 2): ${error.message}`);
+                       handleError(error, `Connection failed (Stage 2): ${error.message || error}`);
                    }
               }
          }
@@ -608,6 +642,11 @@
               saveState(STATE.CONNECTING_FLASH, serial); // Update state
               dfuUtil.logInfo("Attempting final connection for flashing after user click...");
               try {
+                   // --- ADD DELAY ---
+                   dfuUtil.logInfo("Waiting briefly before requesting device (Flash)...");
+                   await sleep(500); // 500ms delay
+                   // --- END DELAY ---
+
                   // Allow user prompt for the final time, using stored serial
                   await attemptConnection(vid, serial, true);
                    // No need to check currentDevice, error thrown on failure or updates it
@@ -622,8 +661,12 @@
                    if (error.message?.includes("No device selected")) {
                        dfuUtil.logWarning("Device selection cancelled by user.");
                        saveState(STATE.PROMPT_CONNECT_FLASH); // Go back to waiting for click
+                   } else if (error.message?.includes("No matching device found")) {
+                        // Handle the specific error from attemptConnection when filter fails
+                        handleError(error, "Connection failed: No matching device found by Chrome for Flash.");
+                        saveState(STATE.PROMPT_CONNECT_FLASH); // Go back to waiting for click
                    } else {
-                       handleError(error, `Connection failed (Final Flash): ${error.message}`);
+                       handleError(error, `Connection failed (Final Flash): ${error.message || error}`);
                    }
               }
          }
@@ -661,13 +704,18 @@
                // Immediately transition state to indicate connection attempt
                saveState(STATE.CONNECTING_STAGE2, serial);
                try {
+                   // --- ADD DELAY ---
+                   dfuUtil.logInfo("Waiting briefly before auto-connecting (Stage 2)...");
+                   await sleep(500); // Add a small delay here too for auto-connect
+                   // --- END DELAY ---
+
                     // DO NOT allow prompt here - rely on existing permissions granted before refresh
                     await attemptConnection(vid, serial, false);
                     // No need to check currentDevice, error thrown on failure or updates it
 
                     dfuUtil.logSuccess(`Auto-reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`);
                     saveState(STATE.WAITING_STABLE, serial);
-                    await new Promise(resolve => setTimeout(resolve, 1500)); // Stabilize
+                    await sleep(1500); // Stabilize using helper
 
                      // Attempt to clear status after auto-connect
                     try {
@@ -692,7 +740,7 @@
                          saveState(STATE.PROMPT_CONNECT_STAGE2, serial); // Ask user to click button
                     } else {
                         // Handle other unexpected errors during auto-connect
-                        handleError(error, `Automatic connection failed (Stage 2): ${error.message}`);
+                        handleError(error, `Automatic connection failed (Stage 2): ${error.message || error}`);
                     }
                }
            }
@@ -702,6 +750,11 @@
                 // Immediately transition state
                 saveState(STATE.CONNECTING_FLASH, serial);
                 try {
+                    // --- ADD DELAY ---
+                    dfuUtil.logInfo("Waiting briefly before auto-connecting (Flash)...");
+                    await sleep(500); // Add a small delay here too for auto-connect
+                    // --- END DELAY ---
+
                      // DO NOT allow prompt here
                      await attemptConnection(vid, serial, false);
                      // No need to check currentDevice, error thrown on failure or updates it
@@ -716,7 +769,7 @@
                          dfuUtil.logWarning("Permissions needed for Flash (not persisted). Asking user to click.");
                          saveState(STATE.PROMPT_CONNECT_FLASH, serial); // Ask user to click button
                      } else {
-                         handleError(error, `Automatic connection failed (Final Flash): ${error.message}`);
+                         handleError(error, `Automatic connection failed (Final Flash): ${error.message || error}`);
                      }
                 }
            } else {
