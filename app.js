@@ -30,11 +30,12 @@
     let currentDevice = null; // Holds the connected dfu.Device object
     let connectAttempts = 0;
     const MAX_CONNECT_ATTEMPTS = 5; // Prevent infinite loops
-    const vid = 0x2FE3; // μCritter Vendor ID
+    let vid = 0x2FE3; // μCritter Vendor ID
     const pidStage1 = 0x0100; // μCritter PID Stage 1 (MCUBOOT) - 256 decimal
     const pidStage2 = 0xFFFF; // μCritter PID Stage 2 (MCUBOOT) - 65535 decimal
     let serial = ''; // Store device serial number across refreshes
     let firmwareLoaded = false; // Flag for firmware loading status
+
 
     // --- Session Storage Keys (using const for keys) ---
     const stateKey = 'ucritterFlashState';
