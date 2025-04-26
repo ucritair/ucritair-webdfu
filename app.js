@@ -6,7 +6,7 @@
     let connectButton = null;
     let statusDisplay = null;
     let downloadLog = null;
-    let dfuUtil = null; // Will hold the DfuUtil instance
+    let dfuUtil = null; // Will hold the DfuUtil instance (assigned during init)
 
     // --- State Definitions (using const for immutability) ---
     const STATE = Object.freeze({ // Use Object.freeze for safety
@@ -14,11 +14,11 @@
         CONNECTING_STAGE1: 'connecting_stage1',
         WAITING_DISCONNECT: 'waiting_disconnect',
         PROMPT_REFRESH_1: 'prompt_refresh_1',
-        PROMPT_CONNECT_STAGE2: 'prompt_connect_stage2', // Ask user to click button for stage 2 permission
+        PROMPT_CONNECT_STAGE2: 'prompt_connect_stage2',
         CONNECTING_STAGE2: 'connecting_stage2',
         WAITING_STABLE: 'waiting_stable',
         PROMPT_REFRESH_2: 'prompt_refresh_2',
-        PROMPT_CONNECT_FLASH: 'prompt_connect_flash', // Ask user to click button for final flash permission
+        PROMPT_CONNECT_FLASH: 'prompt_connect_flash',
         CONNECTING_FLASH: 'connecting_flash',
         FLASHING: 'flashing',
         FLASH_COMPLETE: 'flash_complete',
@@ -27,7 +27,7 @@
 
     // --- Application State Variables ---
     let currentState = STATE.IDLE;
-    let currentDevice = null; // Holds the connected dfu.Device object (could be dfu.Device or dfuse.Device)
+    let currentDevice = null; // Holds the connected dfu.Device object
     let connectAttempts = 0;
     const MAX_CONNECT_ATTEMPTS = 5; // Prevent infinite loops
     let vid = 0x2FE3; // Default Vendor ID for μCritter DFU
@@ -61,964 +61,250 @@
         }
         currentState = stateToSave;
         sessionStorage.setItem(stateKey, stateToSave);
-        // Only save serial if it's provided and non-empty
-        if (deviceSerial) {
-            sessionStorage.setItem(serialKey, deviceSerial);
-        } else {
-            // Clear serial from storage if not provided (e.g., during clearState)
-            sessionStorage.removeItem(serialKey);
-        }
+        if (deviceSerial) { sessionStorage.setItem(serialKey, deviceSerial); }
+        else { sessionStorage.removeItem(serialKey); }
         console.log("State saved:", stateToSave, "Serial:", deviceSerial || 'N/A');
-        updateUI(); // Update UI whenever state changes
+        updateUI();
     }
 
-    // --- MODIFIED: loadState is now async and checks for device presence ---
     async function loadState() {
         const savedState = sessionStorage.getItem(stateKey);
         const savedSerial = sessionStorage.getItem(serialKey) || '';
         let stateIsValid = false;
-        let requiresSerial = false; // Keep track if serial was required
-
-        console.log(`Attempting to load state: ${savedState}, Serial: ${savedSerial}`); // Added log
-
-        // Basic validation: Is it a known state? Exclude terminal states.
-        if (savedState && Object.values(STATE).includes(savedState) &&
-            savedState !== STATE.IDLE && savedState !== STATE.FLASH_COMPLETE) // Keep ERROR state initially
-        {
-            // Contextual validation: Check if required serial exists for intermediate states
-            requiresSerial = [
-                STATE.WAITING_DISCONNECT, STATE.PROMPT_REFRESH_1,
-                STATE.PROMPT_CONNECT_STAGE2, STATE.CONNECTING_STAGE2,
-                STATE.WAITING_STABLE, STATE.PROMPT_REFRESH_2,
-                STATE.PROMPT_CONNECT_FLASH, STATE.CONNECTING_FLASH,
-                STATE.FLASHING, STATE.ERROR // Also check serial if in ERROR state from previous run
-            ].includes(savedState);
-
-            if (requiresSerial && !savedSerial) {
-                // Invalid state: Intermediate step requires a serial number, but none found.
-                console.warn(`Invalid saved state detected: State '${savedState}' requires a serial number, but none found in sessionStorage. Resetting.`);
-                stateIsValid = false;
-            } else {
-                // State *seems* plausible based on storage values
-                stateIsValid = true;
-                 console.log(`State '${savedState}' seems initially valid.`);
-            }
-        } else if (savedState === STATE.ERROR) {
-             // Allow loading ERROR state, serial check happens above
-             stateIsValid = true;
-             console.log("State is ERROR, initially valid.");
-        }
-
-        // --- ADDED DEVICE CHECK ---
-        // If the state seems valid so far AND requires a specific serial number,
-        // check if a device with that serial is actually permitted/connected right now.
-        if (stateIsValid && requiresSerial && savedSerial) {
+        let requiresSerial = false;
+        console.log(`Attempting to load state: ${savedState}, Serial: ${savedSerial}`);
+        if (savedState && Object.values(STATE).includes(savedState) && savedState !== STATE.IDLE && savedState !== STATE.FLASH_COMPLETE) {
+            requiresSerial = [ STATE.WAITING_DISCONNECT, STATE.PROMPT_REFRESH_1, STATE.PROMPT_CONNECT_STAGE2, STATE.CONNECTING_STAGE2, STATE.WAITING_STABLE, STATE.PROMPT_REFRESH_2, STATE.PROMPT_CONNECT_FLASH, STATE.CONNECTING_FLASH, STATE.FLASHING, STATE.ERROR ].includes(savedState);
+            if (requiresSerial && !savedSerial) { console.warn(`Invalid saved state detected: State '${savedState}' requires a serial number, but none found in sessionStorage. Resetting.`); stateIsValid = false; }
+            else { stateIsValid = true; console.log(`State '${savedState}' seems initially valid.`); }
+        } else if (savedState === STATE.ERROR) { stateIsValid = true; requiresSerial = true; console.log("State is ERROR, initially valid."); }
+        if (stateIsValid && requiresSerial && savedSerial && typeof navigator.usb !== 'undefined') {
             console.log(`State '${savedState}' requires serial '${savedSerial}'. Verifying device presence...`);
             try {
-                const devices = await navigator.usb.getDevices();
-                const matchingDevice = devices.find(d => d.serialNumber === savedSerial && d.vendorId === vid);
-                if (!matchingDevice) {
-                    // No permitted device matching the stored serial was found!
-                    // This implies an inconsistency (e.g., user disconnected device).
-                    console.warn(`Saved state requires serial '${savedSerial}', but no matching permitted device found on load. Resetting state.`);
-                    stateIsValid = false; // Invalidate the state
-                } else {
-                    console.log(`Matching permitted device found for serial '${savedSerial}'. State remains valid.`);
-                }
-            } catch (error) {
-                console.error("Error checking permitted devices during loadState:", error);
-                // If we can't even check devices, it's safer to reset state
-                stateIsValid = false;
-            }
+                const devices = await navigator.usb.getDevices(); const matchingDevice = devices.find(d => d.serialNumber === savedSerial && d.vendorId === vid);
+                if (!matchingDevice) { console.warn(`Saved state requires serial '${savedSerial}', but no matching permitted device found on load. Resetting state.`); stateIsValid = false; }
+                else { console.log(`Matching permitted device found for serial '${savedSerial}'. State remains valid.`); }
+            } catch (error) { console.error("Error checking permitted devices during loadState:", error); stateIsValid = false; }
         }
-        // --- END DEVICE CHECK ---
-
-
-        if (stateIsValid) {
-           currentState = savedState;
-           serial = savedSerial; // Restore serial
-           console.log("State loaded successfully:", currentState, "Serial:", serial);
-        } else {
-            // Default to IDLE if state is invalid, missing, inconsistent, or a terminal state (excluding ERROR if it became invalid)
-            if (savedState && savedState !== STATE.IDLE) { // Don't log reset if it was already IDLE
-              console.log(`Saved state '${savedState}' was invalid or inconsistent. Resetting to IDLE.`);
-            } else {
-              console.log("No valid state loaded or state was IDLE, starting fresh.");
-            }
-            // Clear everything and set to IDLE
-            currentState = STATE.IDLE;
-            serial = '';
-            sessionStorage.removeItem(stateKey);
-            sessionStorage.removeItem(serialKey);
-            // No need to call clearState() here, as we are setting the state directly
+        if (stateIsValid) { currentState = savedState; serial = savedSerial; console.log("State loaded successfully:", currentState, "Serial:", serial); }
+        else { if (savedState && savedState !== STATE.IDLE) { console.log(`Saved state '${savedState}' was invalid or inconsistent. Resetting to IDLE.`); } else { console.log("No valid state loaded or state was IDLE, starting fresh."); }
+            currentState = STATE.IDLE; serial = ''; sessionStorage.removeItem(stateKey); sessionStorage.removeItem(serialKey);
         }
     }
 
     function clearState() {
-        const previousState = currentState; // Store previous state for logging if needed
-        currentState = STATE.IDLE;
-        currentDevice = null;
-        // Ensure global 'device' potentially used by dfu scripts is also cleared
-        // Check if dfuUtil exists and has a getDevice method before clearing
-        if (dfuUtil && typeof dfuUtil.getDevice === 'function' && dfuUtil.getDevice()) {
-            // Ideally dfu-util manages its own 'device' variable internally.
-            // Direct manipulation of window.device should be avoided if possible.
-            // Relying on dfuUtil.getDevice() being null after disconnect/clear is safer.
-            console.log("Clearing currentDevice reference.");
-        }
-        serial = '';
-        connectAttempts = 0;
-        sessionStorage.removeItem(stateKey);
-        sessionStorage.removeItem(serialKey);
-        console.log(`State cleared (was ${previousState})`);
-        if (dfuUtil && downloadLog) dfuUtil.clearLog(downloadLog); // Clear log on reset
-        updateUI(); // Update UI to reflect cleared state
+        const previousState = currentState; currentState = STATE.IDLE; currentDevice = null;
+        if (dfuUtil && typeof dfuUtil.getDevice === 'function' && dfuUtil.getDevice()) { console.log("Clearing currentDevice reference."); }
+        serial = ''; connectAttempts = 0; sessionStorage.removeItem(stateKey); sessionStorage.removeItem(serialKey);
+        console.log(`State cleared (was ${previousState})`); if (dfuUtil && downloadLog) dfuUtil.clearLog(downloadLog); updateUI();
     }
 
     // --- UI Update Logic ---
     function updateStatus(message, type = 'info') {
-        if (!statusDisplay) {
-            // Don't log warning repeatedly if called before init completes
-            // console.warn("Status display element not found.");
-            return;
-        }
-        statusDisplay.textContent = message;
-        // Use classList for better class management
-        statusDisplay.className = ''; // Clear existing classes first
-        statusDisplay.classList.add('status', `status-${type}`); // Add base and type class
-        // Avoid logging status updates before DFU util is ready
-        if (dfuUtil) {
-          console.log(`Status Update (${type}): ${message}`);
-        }
+        if (!statusDisplay) { return; } statusDisplay.textContent = message; statusDisplay.className = ''; statusDisplay.classList.add('status', `status-${type}`);
+        if (dfuUtil) { console.log(`Status Update (${type}): ${message}`); }
     }
 
     function updateUI() {
-        if (!connectButton) {
-            // Don't log error repeatedly if called before init completes
-            // console.error("Connect button element not found during UI update!");
-            return;
-        }
-        // Log state only if DFU util is available (indicates basic init happened)
-        if (dfuUtil) {
-          console.log("Updating UI for state:", currentState);
-        }
-
-
-        let buttonDisabled = false;
-        let buttonText = "Flash My Critter!"; // Default text
-        const dfuseFields = document.getElementById("dfuseFields");
-
-        // Determine button text and disabled state based on current state
+        if (!connectButton) { return; } if (dfuUtil) { console.log("Updating UI for state:", currentState); }
+        let buttonDisabled = false; let buttonText = "Flash My Critter!";
         switch (currentState) {
-            case STATE.IDLE:
-                updateStatus("Ready to connect", "info");
-                buttonText = firmwareLoaded ? "Flash My Critter!" : "Loading Firmware...";
-                buttonDisabled = !firmwareLoaded;
-                break;
-            case STATE.CONNECTING_STAGE1:
-            case STATE.CONNECTING_STAGE2:
-            case STATE.CONNECTING_FLASH:
-                updateStatus(`Connecting (${currentState})... Check browser pop-up!`, "info");
-                buttonText = "Connecting...";
-                buttonDisabled = true;
-                break;
-            case STATE.WAITING_DISCONNECT:
-                updateStatus("Stage 1 Connected. Switching device mode...", "info");
-                buttonText = "Switching...";
-                buttonDisabled = true;
-                if (dfuUtil) dfuUtil.logInfo("Attempting detach..."); // Log action
-                break;
-             case STATE.PROMPT_REFRESH_1:
-                updateStatus("Stage 1 Done! Please REFRESH PAGE NOW (Ctrl+R or Cmd+R).", "prompt");
-                buttonText = "REFRESH PAGE NOW"; // Make it clear
-                buttonDisabled = true; // Disable button, user must refresh
-                if (dfuUtil) dfuUtil.logSuccess("Ready for first refresh. Please refresh the page.");
-                break;
-             case STATE.PROMPT_CONNECT_STAGE2:
-                 updateStatus("Click button to grant permission for Stage 2.", "prompt");
-                 buttonText = "Connect Stage 2";
-                 buttonDisabled = false; // Enable button for user interaction
-                 if (dfuUtil) dfuUtil.logWarning("Browser needs permission for Stage 2. Please click 'Connect Stage 2'.");
-                 break;
-             case STATE.PROMPT_CONNECT_FLASH:
-                 updateStatus("Click button to grant permission for Flash.", "prompt");
-                 buttonText = "Connect to Flash";
-                 buttonDisabled = false; // Enable button for user interaction
-                 if (dfuUtil) dfuUtil.logWarning("Browser needs final permission. Please click 'Connect to Flash'.");
-                 break;
-             case STATE.WAITING_STABLE:
-                  updateStatus("Stage 2 Connected. Stabilizing...", "info");
-                  buttonText = "Stabilizing...";
-                  buttonDisabled = true;
-                  if (dfuUtil) dfuUtil.logInfo("Waiting briefly for device to stabilize...");
-                  break;
-            case STATE.PROMPT_REFRESH_2:
-                updateStatus("Stage 2 Ready! Please REFRESH PAGE AGAIN.", "prompt");
-                buttonText = "REFRESH PAGE AGAIN"; // Make it clear
-                buttonDisabled = true; // Disable button, user must refresh
-                if (dfuUtil) dfuUtil.logSuccess("Ready for final refresh. Please refresh the page.");
-                break;
-            case STATE.FLASHING:
-                updateStatus("Flashing Firmware... Do not disconnect!", "info");
-                buttonText = "Flashing...";
-                buttonDisabled = true;
-                 if (dfuUtil) dfuUtil.logInfo("Starting firmware flash process...");
-                break;
-            case STATE.FLASH_COMPLETE:
-                updateStatus("Pupdate Complete! Critter rebooting.", "success");
-                buttonText = "Done!";
-                buttonDisabled = true; // Disable button after completion
-                if (dfuUtil) dfuUtil.logSuccess("Firmware flashed successfully! Your Critter should reboot now.");
-                 // Reset state after a delay to allow user to see the message
-                 setTimeout(clearState, 6000);
-                break;
-            case STATE.ERROR:
-                // Status is set by handleError
-                buttonText = "Error Occurred - Reset?"; // Prompt user to reset
-                buttonDisabled = false; // Allow user to click to reset
-                break;
-            default:
-                 // Should not happen with frozen STATE object
-                 updateStatus("Unknown application state", "error");
-                 buttonText = "Error";
-                 buttonDisabled = true;
+            case STATE.IDLE: updateStatus("Ready to connect", "info"); buttonText = firmwareLoaded ? "Flash My Critter!" : "Loading Firmware..."; buttonDisabled = !firmwareLoaded; break;
+            case STATE.CONNECTING_STAGE1: case STATE.CONNECTING_STAGE2: case STATE.CONNECTING_FLASH: updateStatus(`Connecting (${currentState})... Check browser pop-up!`, "info"); buttonText = "Connecting..."; buttonDisabled = true; break;
+            case STATE.WAITING_DISCONNECT: updateStatus("Stage 1 Connected. Switching device mode...", "info"); buttonText = "Switching..."; buttonDisabled = true; if (dfuUtil) dfuUtil.logInfo("Attempting detach..."); break;
+            case STATE.PROMPT_REFRESH_1: updateStatus("Stage 1 Done! Please REFRESH PAGE NOW (Ctrl+R or Cmd+R).", "prompt"); buttonText = "REFRESH PAGE NOW"; buttonDisabled = true; if (dfuUtil) dfuUtil.logSuccess("Ready for first refresh. Please refresh the page."); break;
+            case STATE.PROMPT_CONNECT_STAGE2: updateStatus("Click button to grant permission for Stage 2.", "prompt"); buttonText = "Connect Stage 2"; buttonDisabled = false; if (dfuUtil) dfuUtil.logWarning("Browser needs permission for Stage 2. Please click 'Connect Stage 2'."); break;
+            case STATE.PROMPT_CONNECT_FLASH: updateStatus("Click button to grant permission for Flash.", "prompt"); buttonText = "Connect to Flash"; buttonDisabled = false; if (dfuUtil) dfuUtil.logWarning("Browser needs final permission. Please click 'Connect to Flash'."); break;
+            case STATE.WAITING_STABLE: updateStatus("Stage 2 Connected. Stabilizing...", "info"); buttonText = "Stabilizing..."; buttonDisabled = true; if (dfuUtil) dfuUtil.logInfo("Waiting briefly for device to stabilize..."); break;
+            case STATE.PROMPT_REFRESH_2: updateStatus("Stage 2 Ready! Please REFRESH PAGE AGAIN.", "prompt"); buttonText = "REFRESH PAGE AGAIN"; buttonDisabled = true; if (dfuUtil) dfuUtil.logSuccess("Ready for final refresh. Please refresh the page."); break;
+            case STATE.FLASHING: updateStatus("Flashing Firmware... Do not disconnect!", "info"); buttonText = "Flashing..."; buttonDisabled = true; if (dfuUtil) dfuUtil.logInfo("Starting firmware flash process..."); break;
+            case STATE.FLASH_COMPLETE: updateStatus("Pupdate Complete! Critter rebooting.", "success"); buttonText = "Done!"; buttonDisabled = true; if (dfuUtil) dfuUtil.logSuccess("Firmware flashed successfully! Your Critter should reboot now."); setTimeout(clearState, 6000); break;
+            case STATE.ERROR: buttonText = "Error Occurred - Reset?"; buttonDisabled = false; break;
+            default: updateStatus("Unknown application state", "error"); buttonText = "Error"; buttonDisabled = true;
         }
-        // Apply changes to the button
-        connectButton.textContent = buttonText;
-        connectButton.disabled = buttonDisabled;
-
-        // Show/hide DfuSe fields based on connected device type
-        if (dfuseFields) {
-             // Check if dfuse object and Device constructor exist before using instanceof
-            const isDfuSeDevice = typeof dfuse !== 'undefined' && typeof dfuse.Device === 'function' && currentDevice instanceof dfuse.Device;
-            dfuseFields.hidden = !isDfuSeDevice;
-            // console.log("DfuSe fields hidden:", dfuseFields.hidden); // Optional: keep for debugging
-        } else {
-            // Only warn once if element not found during init maybe?
-            // console.warn("DfuSe fields element not found.");
-        }
+        connectButton.textContent = buttonText; connectButton.disabled = buttonDisabled;
     }
 
     // --- Error Handling ---
     function handleError(error, userMsg = "An error occurred. Check console.") {
-        console.error("Error caught:", error); // Log the full error object
-        // Extract a useful message for logging/display
-        const messageToLog = (error instanceof Error) ? error.message : String(error);
-
-        // Log error details unless it's just asking for user interaction
-        if (dfuUtil && !(error instanceof NeedsUserGestureError)) {
-             dfuUtil.logError(`Error: ${messageToLog}`);
-        } else if (!dfuUtil) {
-            // Log to console if dfuUtil isn't ready yet
-            console.error(`Error before DFU Util ready: ${messageToLog}`);
-        }
-        // Update user-facing status
-        updateStatus(userMsg, "error");
-        // Transition to error state to allow reset
-        // Avoid saving state if already in ERROR to prevent loops
-        if (currentState !== STATE.ERROR) {
-            saveState(STATE.ERROR);
-        }
+        console.error("Error caught:", error); const messageToLog = (error instanceof Error) ? error.message : String(error);
+        if (dfuUtil && !(error instanceof NeedsUserGestureError)) { dfuUtil.logError(`Error: ${messageToLog}`); }
+        else if (!dfuUtil) { console.error(`Error before DFU Util ready: ${messageToLog}`); }
+        updateStatus(userMsg, "error"); if (currentState !== STATE.ERROR) { saveState(STATE.ERROR); }
     }
 
-
     // --- Core Connection and Flashing Logic ---
-
-    /**
-     * Attempts to connect to the μCritter device.
-     * Handles finding permitted devices and requesting permission if needed.
-     * @param {number} attemptVid - The Vendor ID to filter by.
-     * @param {string|null} attemptSerial - The Serial Number to filter by (if known).
-     * @param {boolean} allowRequestPrompt - Whether to call navigator.usb.requestDevice().
-     * @returns {Promise<dfu.Device>} Resolves with the connected device object (dfu.Device or dfuse.Device).
-     * @throws {Error|NeedsUserGestureError} Throws error on failure or if user gesture is needed but not allowed.
-     */
     async function attemptConnection(attemptVid, attemptSerial, allowRequestPrompt = false) {
-          connectAttempts++;
-          if (connectAttempts > MAX_CONNECT_ATTEMPTS) {
-              throw new Error(`Maximum connection attempts (${MAX_CONNECT_ATTEMPTS}) reached.`);
-          }
-          // Ensure DFU libraries are available before proceeding
-          if (typeof dfu === 'undefined' || typeof dfuUtil === 'undefined') {
-                throw new Error("Core DFU libraries (dfu.js, dfu-util.js) not available.");
-          }
-
+          connectAttempts++; if (connectAttempts > MAX_CONNECT_ATTEMPTS) { throw new Error(`Maximum connection attempts (${MAX_CONNECT_ATTEMPTS}) reached.`); }
+          if (typeof dfu === 'undefined' || typeof dfuUtil === 'undefined') { throw new Error("Core DFU libraries (dfu.js, dfu-util.js) not available."); }
           dfuUtil.logInfo(`Connection attempt ${connectAttempts}: VID=0x${attemptVid.toString(16)}, Serial=${attemptSerial || 'any'}, PromptAllowed=${allowRequestPrompt}`);
-
-          // Define filter for checking existing permitted devices (always include serial if available)
-          const permittedDeviceFilter = [{ vendorId: attemptVid }];
-          if (attemptSerial) {
-              permittedDeviceFilter[0].serialNumber = attemptSerial;
-          }
-
-          // 1. Check already permitted devices
+          const permittedDeviceFilter = [{ vendorId: attemptVid }]; if (attemptSerial) { permittedDeviceFilter[0].serialNumber = attemptSerial; }
           try {
-              const devices = await navigator.usb.getDevices();
-              dfuUtil.logInfo(`Found ${devices.length} permitted devices. Checking for match using filter: ${JSON.stringify(permittedDeviceFilter)}`);
-              const matchingDevice = devices.find(d => {
-                  let vidMatch = d.vendorId === attemptVid;
-                  // Only check serial if it was provided in the filter
-                  let serialMatch = !permittedDeviceFilter[0].serialNumber || d.serialNumber === permittedDeviceFilter[0].serialNumber;
-                  // Check if the device exposes *any* DFU interface using the library function
-                  let dfuCapable = dfu.findDeviceDfuInterfaces(d).length > 0;
-                  return vidMatch && serialMatch && dfuCapable;
-              });
-
-              if (matchingDevice) {
-                  dfuUtil.logInfo(`Found permitted matching device: ${matchingDevice.productName || 'Unknown'} (Serial: ${matchingDevice.serialNumber || 'N/A'})`);
-                  // Attempt to connect using dfuUtil, which returns dfu.Device or dfuse.Device
-                  const connectedDfuDevice = await dfuUtil.connect(matchingDevice);
-                  connectAttempts = 0; // Reset attempts on success
-                  dfuUtil.logSuccess(`Connected to permitted device.`);
-                  currentDevice = connectedDfuDevice; // Store reference
-                  return connectedDfuDevice; // Return the dfu.Device/dfuse.Device object
-              } else {
-                   dfuUtil.logInfo("No matching permitted device found.");
-              }
-          } catch (error) {
-              // Log more specific error if possible
-              dfuUtil.logWarning(`Error checking permitted devices: ${error.message || error}. Proceeding to request prompt if allowed.`);
-          }
-
-          // 2. If no permitted device found/connected, request permission if allowed
-          if (!allowRequestPrompt) {
-                dfuUtil.logWarning("Device permission required, but cannot prompt automatically in this state (likely requires user click).");
-                throw new NeedsUserGestureError("Device permission required, user interaction needed.");
-           }
-
-           // Define the filter for the *user prompt*.
-           // Use ONLY Vendor ID for the prompt to broaden detection chances after PID change.
-           const promptFilter = [{ vendorId: attemptVid }];
-           dfuUtil.logInfo(`Requesting device permission from user with filter: ${JSON.stringify(promptFilter)}`);
-
+              const devices = await navigator.usb.getDevices(); dfuUtil.logInfo(`Found ${devices.length} permitted devices. Checking for match using filter: ${JSON.stringify(permittedDeviceFilter)}`);
+              const matchingDevice = devices.find(d => (d.vendorId === attemptVid) && (!permittedDeviceFilter[0].serialNumber || d.serialNumber === permittedDeviceFilter[0].serialNumber) && (dfu.findDeviceDfuInterfaces(d).length > 0));
+              if (matchingDevice) { dfuUtil.logInfo(`Found permitted matching device: ${matchingDevice.productName || 'Unknown'} (Serial: ${matchingDevice.serialNumber || 'N/A'})`); const c = await dfuUtil.connect(matchingDevice); connectAttempts = 0; dfuUtil.logSuccess(`Connected to permitted device.`); currentDevice = c; return c; }
+              else { dfuUtil.logInfo("No matching permitted device found."); }
+          } catch (error) { dfuUtil.logWarning(`Error checking permitted devices: ${error.message || error}. Proceeding to request prompt if allowed.`); }
+          if (!allowRequestPrompt) { dfuUtil.logWarning("Device permission required, but cannot prompt automatically in this state (likely requires user click)."); throw new NeedsUserGestureError("Device permission required, user interaction needed."); }
+          const promptFilter = [{ vendorId: attemptVid }]; dfuUtil.logInfo(`Requesting device permission from user with filter: ${JSON.stringify(promptFilter)}`);
            try {
-              // Prompt user to select a device using the modified filter
-              const selectedUsbDevice = await navigator.usb.requestDevice({ filters: promptFilter }); // Use promptFilter here
-
-              // Update VID and Serial based on user selection, as it might differ slightly
-              vid = selectedUsbDevice.vendorId; // Update VID just in case (should be the same)
-              serial = selectedUsbDevice.serialNumber || ''; // Update serial based on selection
-              sessionStorage.setItem(serialKey, serial); // Save potentially new serial
-
-              dfuUtil.logInfo(`User selected device: ${selectedUsbDevice.productName || 'Unknown'} (VID: 0x${vid.toString(16)}, Serial: ${serial || 'N/A'})`);
-
-              // Connect to the selected device using dfuUtil
-              const connectedDfuDevice = await dfuUtil.connect(selectedUsbDevice);
-              connectAttempts = 0; // Reset attempts on success
-              dfuUtil.logSuccess(`Connected to user-selected device.`);
-              currentDevice = connectedDfuDevice; // Store reference
-              return connectedDfuDevice; // Return the dfu.Device/dfuse.Device object
+              const selectedUsbDevice = await navigator.usb.requestDevice({ filters: promptFilter }); vid = selectedUsbDevice.vendorId; serial = selectedUsbDevice.serialNumber || ''; sessionStorage.setItem(serialKey, serial);
+              dfuUtil.logInfo(`User selected device: ${selectedUsbDevice.productName || 'Unknown'} (VID: 0x${vid.toString(16)}, Serial: ${serial || 'N/A'})`); const c = await dfuUtil.connect(selectedUsbDevice); connectAttempts = 0; dfuUtil.logSuccess(`Connected to user-selected device.`); currentDevice = c; return c;
            } catch(error) {
-               // Handle specific errors from requestDevice
-               if (error.name === 'NotFoundError') {
-                   // Check if filters were used - if so, maybe device wasn't seen by Chrome *at all*
-                   if (promptFilter && promptFilter.length > 0) {
-                        dfuUtil.logError("Device selection prompt failed: No matching device found by Chrome, even though OS might see it.");
-                        throw new Error("No matching device found by Chrome. Check OS/driver or connection.");
-                   } else {
-                        // If no filters used (shouldn't happen here), means user cancelled
-                        throw new Error("No device selected by the user.");
-                   }
-               } else if (error.name === 'SecurityError') {
-                    throw new Error("Device request blocked by browser security settings (requires secure context/HTTPS).");
-               }
-               // Rethrow other errors (like connection issues after selection)
+               if (error.name === 'NotFoundError') { if (promptFilter?.length > 0) { dfuUtil.logError("Device selection prompt failed: No matching device found by Chrome."); throw new Error("No matching device found by Chrome. Check OS/driver or connection."); } else { throw new Error("No device selected by the user."); } }
+               else if (error.name === 'SecurityError') { throw new Error("Device request blocked by browser security settings (requires secure context/HTTPS)."); }
                throw new Error(`Error requesting/connecting device: ${error.message || error}`);
            }
     }
 
-    /**
-     * Performs the actual firmware download process using the currentDevice object.
-     */
     async function runFlashWorkflow() {
-          if (!currentDevice) { handleError(new Error("runFlashWorkflow called with no device."), "Device not connected."); return; }
-          if (currentState !== STATE.FLASHING) { console.warn("runFlashWorkflow called in incorrect state:", currentState); return; }
-          if (!dfuUtil) { handleError(new Error("dfuUtil missing."), "Internal error: DFU utility not available."); return; }
-
-          const firmware = dfuUtil.getFirmwareFile();
-          if (!firmware) { handleError(new Error("Firmware not loaded."), "Firmware file is missing!"); return; }
-
-          // Determine DFU properties safely from the currentDevice object
-          const transferSize = currentDevice.properties?.TransferSize ?? 1024; // Default transfer size
-          const manifestationTolerant = currentDevice.properties?.ManifestationTolerant ?? true; // Default true is safer
-
-          dfuUtil.logInfo(`Starting firmware flash... (Size: ${firmware.byteLength} bytes)`);
-          dfuUtil.logInfo(`Using TransferSize: ${transferSize}, ManifestationTolerant: ${manifestationTolerant}`);
-
-          // Handle DfuSe specific address if device is DfuSe type
-          // Check if dfuse object and Device constructor exist before using instanceof
-          if (typeof dfuse !== 'undefined' && typeof dfuse.Device === 'function' && currentDevice instanceof dfuse.Device) {
-              const dfuseStartAddressField = document.getElementById("dfuseStartAddress");
-              let addrStr = dfuseStartAddressField?.value?.trim();
-              // Default to a common STM32 start address if empty/invalid, or 0x0 if that fails
-              let addr = parseInt(addrStr || "0x08000000", 16);
-              if (isNaN(addr)) addr = 0; // Fallback if default is invalid
-
-
-              // Validate address if possible (requires memoryInfo on the dfuse.Device object)
-              if (currentDevice.memoryInfo) {
-                  if (!isNaN(addr) && currentDevice.getSegment(addr)) {
-                      currentDevice.startAddress = addr; // Set the start address on the device object
-                      dfuUtil.logInfo(`Using DfuSe start address: 0x${addr.toString(16)}`);
-                  } else {
-                      const firstSegment = currentDevice.getFirstWritableSegment();
-                      if (firstSegment) {
-                          currentDevice.startAddress = firstSegment.start;
-                          dfuUtil.logWarning(`Invalid/missing address. Using default DfuSe start address: 0x${firstSegment.start.toString(16)}`);
-                      } else {
-                          handleError(new Error("DfuSe device has no writable segment!"), "Cannot flash DfuSe device: No writable memory found.");
-                          return;
-                      }
-                  }
-              } else if (!isNaN(addr)) {
-                   currentDevice.startAddress = addr; // Use provided address if memoryInfo not available
-                   dfuUtil.logInfo(`Using provided DfuSe start address (no validation): 0x${addr.toString(16)}`);
-              } else {
-                   handleError(new Error("Could not determine DfuSe start address."), "DfuSe configuration error: Invalid address.");
-                   return;
-              }
-          }
-
-          // Start the download process
-          try {
-              if (downloadLog) dfuUtil.clearLog(downloadLog); // Clear log before flashing
-              dfuUtil.logInfo("Starting firmware download to device...");
-
-              // Call the do_download method *on the currentDevice object*.
-              // This will correctly call either dfu.Device.do_download or dfuse.Device.do_download.
-              await currentDevice.do_download(transferSize, firmware, manifestationTolerant);
-
-              dfuUtil.logSuccess("Firmware download process completed successfully.");
-              saveState(STATE.FLASH_COMPLETE); // Transition to complete state
-
-          } catch (error) {
-              // Provide more specific error message if possible
-              handleError(error, `Flashing process failed: ${error.message || 'Unknown DFU error'}`);
-          }
+          if (!currentDevice) { handleError(new Error("runFlashWorkflow called with no device."), "Device not connected."); return; } if (currentState !== STATE.FLASHING) { console.warn("runFlashWorkflow called in incorrect state:", currentState); return; } if (!dfuUtil) { handleError(new Error("dfuUtil missing."), "Internal error: DFU utility not available."); return; }
+          const firmware = dfuUtil.getFirmwareFile(); if (!firmware) { handleError(new Error("Firmware not loaded."), "Firmware file is missing!"); return; }
+          const transferSize = currentDevice.properties?.TransferSize ?? 1024; const manifestationTolerant = currentDevice.properties?.ManifestationTolerant ?? true;
+          dfuUtil.logInfo(`Starting firmware flash... (Size: ${firmware.byteLength} bytes)`); dfuUtil.logInfo(`Using TransferSize: ${transferSize}, ManifestationTolerant: ${manifestationTolerant}`);
+          try { if (downloadLog) dfuUtil.clearLog(downloadLog); dfuUtil.logInfo("Starting firmware download to device..."); await currentDevice.do_download(transferSize, firmware, manifestationTolerant); dfuUtil.logSuccess("Firmware download process completed successfully."); saveState(STATE.FLASH_COMPLETE); }
+          catch (error) { handleError(error, `Flashing process failed: ${error.message || 'Unknown DFU error'}`); }
       }
 
-
-    // --- Main Button Click Handler ---
     async function handleConnectClick() {
-        // If in Error state, treat button click as a reset
-        if (currentState === STATE.ERROR) {
-            clearState(); // Resets state, clears logs, updates UI
-            if (dfuUtil) dfuUtil.logInfo("State reset. Please try the connection process again.");
-            return;
-        }
+        if (currentState === STATE.ERROR) { clearState(); if (dfuUtil) dfuUtil.logInfo("State reset. Please try the connection process again."); return; }
+        if ([STATE.CONNECTING_STAGE1, STATE.WAITING_DISCONNECT, STATE.CONNECTING_STAGE2, STATE.WAITING_STABLE, STATE.CONNECTING_FLASH, STATE.FLASHING, STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, STATE.FLASH_COMPLETE].includes(currentState)) { console.warn(`Button clicked in non-interactive state: ${currentState}. Ignoring.`); return; }
+        if (currentState === STATE.IDLE && !firmwareLoaded) { updateStatus("Firmware is still loading, please wait...", "info"); return; } if (!dfuUtil) { handleError(new Error("DFU Utility not ready."), "Initialization error, please refresh."); return; }
 
-        // Prevent clicks during busy/prompt states that don't require user clicks
-        if ([STATE.CONNECTING_STAGE1, STATE.WAITING_DISCONNECT, STATE.CONNECTING_STAGE2,
-             STATE.WAITING_STABLE, STATE.CONNECTING_FLASH, STATE.FLASHING,
-             STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, STATE.FLASH_COMPLETE].includes(currentState)) {
-             console.warn(`Button clicked in non-interactive state: ${currentState}. Ignoring.`);
-             return; // Ignore click
-        }
-
-         // Check if firmware is loaded when starting from IDLE
-         if (currentState === STATE.IDLE && !firmwareLoaded) {
-             updateStatus("Firmware is still loading, please wait...", "info");
-             return;
-         }
-         // Ensure DFU util is ready before proceeding
-         if (!dfuUtil) {
-             handleError(new Error("DFU Utility not ready."), "Initialization error, please refresh.");
-             return;
-         }
-
-         // --- Handle states where user click IS expected/required ---
-
-         // 1. Start the process from IDLE state
-         if (currentState === STATE.IDLE) {
-             connectAttempts = 0; // Reset connection attempts
-             saveState(STATE.CONNECTING_STAGE1); // Update state immediately
-             if (downloadLog) dfuUtil.clearLog(downloadLog); // Clear previous logs
-             dfuUtil.logInfo("Starting Stage 1 connection...");
-
+        if (currentState === STATE.IDLE) {
+             connectAttempts = 0; saveState(STATE.CONNECTING_STAGE1); if (downloadLog) dfuUtil.clearLog(downloadLog); dfuUtil.logInfo("Starting Stage 1 connection...");
              try {
-                 // Allow user prompt for the first connection attempt
-                 await attemptConnection(vid, null, true);
-                 // currentDevice is updated within attemptConnection
-
-                 // *** VERIFY DEVICE IS MCUBOOT ***
-                 if (!currentDevice || !currentDevice.device_ || currentDevice.device_.productName !== 'MCUBOOT') {
-                      // Throw a specific error to be caught below
-                      throw new Error(`Incorrect device connected: ${currentDevice?.device_?.productName || 'Unknown'}. Expected 'MCUBOOT'.`);
-                 }
-
-                 dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Stage 1). Serial: ${currentDevice.device_.serialNumber || 'N/A'}`);
-                 serial = currentDevice.device_.serialNumber || ''; // Capture the serial number
-
-                 // Detach sequence
-                 dfuUtil.logInfo("Waiting briefly before detaching for mode switch...");
-                 await sleep(300); // Short delay using helper
-
-                 saveState(STATE.WAITING_DISCONNECT, serial); // Update state before detach command
-                 await currentDevice.detach(); // Potential stall point
-                 dfuUtil.logInfo("Detach command sent. Waiting for device disconnect...");
-
-                 // Wait for disconnection (with timeout)
-                 await Promise.race([
-                     currentDevice.waitDisconnected(5000), // Wait up to 5 seconds
-                     new Promise((_, reject) => setTimeout(() => reject(new Error("Device did not disconnect within 5 seconds after detach.")), 5000))
-                 ]);
-                 dfuUtil.logInfo("Device disconnected (or timed out waiting).");
-
-                 // Transition to refresh prompt *only if* still in the waiting state
-                 // This prevents transitioning if an error occurred or disconnect was handled differently
-                 if (currentState === STATE.WAITING_DISCONNECT) {
-                     saveState(STATE.PROMPT_REFRESH_1, serial);
-                 }
-
+                 await attemptConnection(vid, null, true); if (!currentDevice || !currentDevice.device_ || currentDevice.device_.productName !== 'MCUBOOT') { throw new Error(`Incorrect device connected: ${currentDevice?.device_?.productName || 'Unknown'}. Expected 'MCUBOOT'.`); }
+                 dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Stage 1). Serial: ${currentDevice.device_.serialNumber || 'N/A'}`); serial = currentDevice.device_.serialNumber || ''; dfuUtil.logInfo("Waiting briefly before detaching for mode switch..."); await sleep(300);
+                 saveState(STATE.WAITING_DISCONNECT, serial); await currentDevice.detach(); dfuUtil.logInfo("Detach command sent. Waiting for device disconnect...");
+                 await Promise.race([ currentDevice.waitDisconnected(5000), new Promise((_, r) => setTimeout(() => r(new Error("...detach.")), 5000)) ]);
+                 dfuUtil.logInfo("Device disconnected (or timed out waiting)."); if (currentState === STATE.WAITING_DISCONNECT) { saveState(STATE.PROMPT_REFRESH_1, serial); }
              } catch (error) {
-                  // Provide user-friendly messages for common errors
-                  // Check specifically for stall error, possibly after detach
-                   if (error.message?.toLowerCase().includes("stall")) {
-                        handleError(error, "Device stalled during mode switch. Please Reset and try again.");
-                   } else if (error.message?.includes("disconnect within 5 seconds")) {
-                      // If timeout occurs but we expected disconnect, proceed cautiously
-                      if (currentState === STATE.WAITING_DISCONNECT) {
-                          dfuUtil.logWarning("Device disconnect timeout after detach, proceeding to refresh prompt anyway.");
-                          saveState(STATE.PROMPT_REFRESH_1, serial); // Assume it worked, prompt refresh
-                      } else {
-                          handleError(error, "Device disconnect timeout unexpectedly."); // Unexpected timeout
-                      }
-                  } else if (error.message?.includes("No device selected")) {
-                       dfuUtil.logWarning("Device selection cancelled by user.");
-                       clearState(); // Reset to idle if user cancels
-                   } else if (error.message?.includes("No matching device found")) {
-                        // Handle the specific error from attemptConnection when filter fails
-                        handleError(error, "Connection failed: No matching device found by Chrome.");
-                        clearState(); // Reset to idle
-                   } else if (error instanceof NeedsUserGestureError) {
-                       // This shouldn't happen here as allowRequestPrompt=true, but handle defensively
-                       dfuUtil.logWarning("User gesture needed unexpectedly during Stage 1.");
-                       clearState(); // Go back to idle
-                   } else if (error.message?.includes("Incorrect device connected")) {
-                       // Handle the specific error thrown for wrong device type
-                       handleError(error, "Wrong mode! Put Critter in DFU (Step 1) and try again.");
-                       // currentDevice might be the wrong device, try closing it
-                       if (currentDevice) { try { await currentDevice.close(); } catch(e) { /* ignore close error */ } currentDevice = null; }
-                       clearState(); // Reset fully
-                   } else {
-                       // General error handling
-                       handleError(error, `Connection failed (Stage 1): ${error.message || error}`);
-                   }
-
-                  // Cleanup: Ensure device is closed if an error occurred mid-process, unless already handled
-                  if (currentDevice && !error.message?.includes("Incorrect device connected")) {
-                      try { await currentDevice.close(); } catch(e) { /* ignore close error */ }
-                      currentDevice = null;
-                  }
-
-                  // Ensure state is Error unless it was reset to IDLE or proceeded to REFRESH_1
-                  if (![STATE.IDLE, STATE.PROMPT_REFRESH_1, STATE.ERROR].includes(currentState)) {
-                      saveState(STATE.ERROR);
-                  }
+                  if (error.message?.toLowerCase().includes("stall")) { handleError(error, "Device stalled during mode switch. Please Reset and try again."); }
+                  else if (error.message?.includes("disconnect within 5 seconds")) { if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logWarning("Device disconnect timeout after detach, proceeding anyway."); saveState(STATE.PROMPT_REFRESH_1, serial); } else { handleError(error, "Timeout."); } }
+                  else if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Device selection cancelled."); clearState(); }
+                  else if (error.message?.includes("No matching device found")) { handleError(error, "Connection failed: No matching device found."); clearState(); }
+                  else if (error instanceof NeedsUserGestureError) { dfuUtil.logWarning("User gesture needed unexpectedly."); clearState(); }
+                  else if (error.message?.includes("Incorrect device connected")) { handleError(error, "Wrong mode! Put Critter in DFU (Step 1)."); if (currentDevice) { try { await currentDevice.close(); } catch(e){} currentDevice = null; } clearState(); }
+                  else { handleError(error, `Connection failed (Stage 1): ${error.message || error}`); }
+                  if (currentDevice && !error.message?.includes("Incorrect device connected")) { try { await currentDevice.close(); } catch(e){} currentDevice = null; }
+                  if (![STATE.IDLE, STATE.PROMPT_REFRESH_1, STATE.ERROR].includes(currentState)) { saveState(STATE.ERROR); }
              }
-         }
-
-         // 2. Handle click when Stage 2 connection permission is needed
-         else if (currentState === STATE.PROMPT_CONNECT_STAGE2) {
-              saveState(STATE.CONNECTING_STAGE2, serial); // Update state
-              dfuUtil.logInfo("Attempting Stage 2 connection after user click...");
+        }
+        else if (currentState === STATE.PROMPT_CONNECT_STAGE2) {
+              saveState(STATE.CONNECTING_STAGE2, serial); dfuUtil.logInfo("Attempting Stage 2 connection after user click...");
               try {
-                  // --- Using 500ms DELAY ---
-                  dfuUtil.logInfo("Waiting briefly before requesting device (Stage 2)...");
-                  await sleep(500); // 500ms delay
-                  // --- END DELAY ---
-
-                  // Allow user prompt again for this stage, using stored serial
-                  await attemptConnection(vid, serial, true);
-                  // currentDevice is updated within attemptConnection
-
-                  dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`);
-                  saveState(STATE.WAITING_STABLE, serial);
-                  await sleep(1500); // Wait for device stability using helper
-
-                  // Attempt to clear any lingering error status from DFU device
-                  try {
-                      dfuUtil.logInfo("Checking DFU status...");
-                      let status = await currentDevice.getStatus();
-                      dfuUtil.logInfo(`DFU Status: State=${status.state}, Status=${status.status}`);
-                      // Check if dfu constant exists before using
-                      if (typeof dfu !== 'undefined' && status.state === dfu.dfuERROR) {
-                          dfuUtil.logWarning("Device in DFU error state, attempting to clear...");
-                          await currentDevice.clearStatus();
-                          dfuUtil.logInfo("Cleared DFU error state.");
-                      }
-                  } catch (e) {
-                      dfuUtil.logWarning(`Couldn't check/clear DFU status: ${e}`);
-                  }
-
-                  // Proceed to the next refresh prompt
-                  saveState(STATE.PROMPT_REFRESH_2, serial);
-
+                  dfuUtil.logInfo("Waiting briefly before requesting device (Stage 2)..."); await sleep(500); await attemptConnection(vid, serial, true);
+                  dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`); saveState(STATE.WAITING_STABLE, serial); await sleep(1500);
+                  try { dfuUtil.logInfo("Checking DFU status..."); let s = await currentDevice.getStatus(); dfuUtil.logInfo(`DFU Status: State=${s.state}, Status=${s.status}`); if (typeof dfu !== 'undefined' && s.state === dfu.dfuERROR) { dfuUtil.logWarning("Device in DFU error state, attempting clear..."); await currentDevice.clearStatus(); dfuUtil.logInfo("Cleared DFU error state."); } }
+                  catch (e) { dfuUtil.logWarning(`Couldn't check/clear DFU status: ${e}`); } saveState(STATE.PROMPT_REFRESH_2, serial);
               } catch (error) {
-                   if (error.message?.includes("No device selected")) {
-                       dfuUtil.logWarning("Device selection cancelled by user.");
-                       saveState(STATE.PROMPT_CONNECT_STAGE2); // Go back to waiting for click
-                   } else if (error.message?.includes("No matching device found")) {
-                        // Handle the specific error from attemptConnection when filter fails
-                        handleError(error, "Connection failed: No matching device found by Chrome for Stage 2.");
-                        saveState(STATE.PROMPT_CONNECT_STAGE2); // Go back to waiting for click
-                   } else {
-                       handleError(error, `Connection failed (Stage 2): ${error.message || error}`);
-                   }
+                   if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Device selection cancelled."); saveState(STATE.PROMPT_CONNECT_STAGE2); }
+                   else if (error.message?.includes("No matching device found")) { handleError(error, "Connection failed: No matching device found for Stage 2."); saveState(STATE.PROMPT_CONNECT_STAGE2); }
+                   else { handleError(error, `Connection failed (Stage 2): ${error.message || error}`); }
               }
-         }
-
-         // 3. Handle click when final Flash connection permission is needed
-         else if (currentState === STATE.PROMPT_CONNECT_FLASH) {
-              saveState(STATE.CONNECTING_FLASH, serial); // Update state
-              dfuUtil.logInfo("Attempting final connection for flashing after user click...");
+        }
+        else if (currentState === STATE.PROMPT_CONNECT_FLASH) {
+              saveState(STATE.CONNECTING_FLASH, serial); dfuUtil.logInfo("Attempting final connection for flashing after user click...");
               try {
-                   // --- Using 500ms DELAY ---
-                   dfuUtil.logInfo("Waiting briefly before requesting device (Flash)...");
-                   await sleep(500); // 500ms delay
-                   // --- END DELAY ---
-
-                  // Allow user prompt for the final time, using stored serial
-                  await attemptConnection(vid, serial, true);
-                  // currentDevice is updated within attemptConnection
-
-                  dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Ready to Flash!). Serial: ${serial || 'N/A'}`);
-
-                  // Transition to Flashing state and run the workflow
-                  saveState(STATE.FLASHING, serial);
-                  await runFlashWorkflow(); // This will handle its own errors and final state transition
-
+                   dfuUtil.logInfo("Waiting briefly before requesting device (Flash)..."); await sleep(500); await attemptConnection(vid, serial, true);
+                   dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Ready to Flash!). Serial: ${serial || 'N/A'}`); saveState(STATE.FLASHING, serial); await runFlashWorkflow();
               } catch (error) {
-                   if (error.message?.includes("No device selected")) {
-                       dfuUtil.logWarning("Device selection cancelled by user.");
-                       saveState(STATE.PROMPT_CONNECT_FLASH); // Go back to waiting for click
-                   } else if (error.message?.includes("No matching device found")) {
-                        // Handle the specific error from attemptConnection when filter fails
-                        handleError(error, "Connection failed: No matching device found by Chrome for Flash.");
-                        saveState(STATE.PROMPT_CONNECT_FLASH); // Go back to waiting for click
-                   } else {
-                       handleError(error, `Connection failed (Final Flash): ${error.message || error}`);
-                   }
+                   if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Device selection cancelled."); saveState(STATE.PROMPT_CONNECT_FLASH); }
+                   else if (error.message?.includes("No matching device found")) { handleError(error, "Connection failed: No matching device found for Flash."); saveState(STATE.PROMPT_CONNECT_FLASH); }
+                   else { handleError(error, `Connection failed (Final Flash): ${error.message || error}`); }
               }
          }
     } // End handleConnectClick
 
-
-     // --- Logic to run automatically after page refresh ---
      async function runAutoConnectSequence() {
-          // Ensure DFU util is initialized
-          if (!dfuUtil) {
-              console.error("DfuUtil not ready, cannot run auto-connect sequence.");
-              return;
-          }
-          console.log("Checking for auto-connect sequence. Current state:", currentState);
+          if (!dfuUtil) { console.error("DfuUtil not ready."); return; } console.log("Checking auto-connect. State:", currentState);
+           const requiresSerialCheck = [ STATE.PROMPT_REFRESH_1, STATE.PROMPT_CONNECT_STAGE2, STATE.CONNECTING_STAGE2, STATE.WAITING_STABLE, STATE.PROMPT_REFRESH_2, STATE.PROMPT_CONNECT_FLASH, STATE.CONNECTING_FLASH, STATE.FLASHING ].includes(currentState);
+           if (requiresSerialCheck && !serial) { console.warn(`Auto-connect aborted: State '${currentState}' needs serial.`); clearState(); dfuUtil.logWarning("Inconsistent state."); return; }
 
-           // Add validation: If in a state requiring serial, but serial is missing, reset.
-           const requiresSerial = [
-                STATE.PROMPT_REFRESH_1, STATE.PROMPT_CONNECT_STAGE2, STATE.CONNECTING_STAGE2,
-                STATE.WAITING_STABLE, STATE.PROMPT_REFRESH_2,
-                STATE.PROMPT_CONNECT_FLASH, STATE.CONNECTING_FLASH,
-                STATE.FLASHING
-           ].includes(currentState);
-
-           if (requiresSerial && !serial) {
-               console.warn(`Auto-connect aborted: State '${currentState}' requires serial, but none found. Resetting.`);
-               clearState();
-               dfuUtil.logWarning("Inconsistent state detected on load. Process reset.");
-               return;
-           }
-
-
-          // A. After first refresh, try to auto-connect Stage 2
           if (currentState === STATE.PROMPT_REFRESH_1) {
-               dfuUtil.logInfo("Detected state PROMPT_REFRESH_1. Attempting automatic Stage 2 connection...");
-               // Immediately transition state to indicate connection attempt
-               saveState(STATE.CONNECTING_STAGE2, serial);
+               dfuUtil.logInfo("Detected PROMPT_REFRESH_1. Auto Stage 2 connect..."); saveState(STATE.CONNECTING_STAGE2, serial);
                try {
-                   // --- Using 500ms DELAY ---
-                   dfuUtil.logInfo("Waiting briefly before auto-connecting (Stage 2)...");
-                   await sleep(500); // Add a small delay here too for auto-connect
-                   // --- END DELAY ---
-
-                    // DO NOT allow prompt here - rely on existing permissions granted before refresh
-                    await attemptConnection(vid, serial, false);
-                    // currentDevice is updated within attemptConnection
-
-                    dfuUtil.logSuccess(`Auto-reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`);
-                    saveState(STATE.WAITING_STABLE, serial);
-                    await sleep(1500); // Stabilize using helper
-
-                     // Attempt to clear status after auto-connect
-                    try {
-                        dfuUtil.logInfo("Checking DFU status after auto-reconnect...");
-                        let status = await currentDevice.getStatus();
-                         dfuUtil.logInfo(`DFU Status: State=${status.state}, Status=${status.status}`);
-                         // Check if dfu constant exists
-                        if (typeof dfu !== 'undefined' && status.state === dfu.dfuERROR) {
-                            dfuUtil.logWarning("Device in DFU error state, attempting clear...");
-                            await currentDevice.clearStatus();
-                            dfuUtil.logInfo("Cleared DFU error state.");
-                        }
-                    } catch (e) { dfuUtil.logWarning("Couldn't check/clear DFU status (auto Stage 2): " + e); }
-
-                    // Proceed to next refresh prompt
-                    saveState(STATE.PROMPT_REFRESH_2, serial);
-
-               } catch (error) {
-                    if (error instanceof NeedsUserGestureError) {
-                         // This is the expected path if permissions weren't granted/persisted across refresh
-                         dfuUtil.logWarning("Permissions needed for Stage 2 (not persisted). Asking user to click.");
-                         saveState(STATE.PROMPT_CONNECT_STAGE2, serial); // Ask user to click button
-                    } else {
-                        // Handle other unexpected errors during auto-connect
-                        handleError(error, `Automatic connection failed (Stage 2): ${error.message || error}`);
-                    }
-               }
+                   dfuUtil.logInfo("Waiting briefly before auto-connecting (Stage 2)..."); await sleep(500); await attemptConnection(vid, serial, false);
+                    dfuUtil.logSuccess(`Auto-reconnected Stage 2. Serial: ${serial || 'N/A'}`); saveState(STATE.WAITING_STABLE, serial); await sleep(1500);
+                    try { dfuUtil.logInfo("Checking DFU status..."); let s = await currentDevice.getStatus(); dfuUtil.logInfo(`DFU Status: State=${s.state}, Status=${s.status}`); if (typeof dfu !== 'undefined' && s.state === dfu.dfuERROR) { dfuUtil.logWarning("Device in DFU error state, clearing..."); await currentDevice.clearStatus(); dfuUtil.logInfo("Cleared."); } }
+                    catch (e) { dfuUtil.logWarning("Couldn't check/clear DFU status: " + e); } saveState(STATE.PROMPT_REFRESH_2, serial);
+               } catch (error) { if (error instanceof NeedsUserGestureError) { dfuUtil.logWarning("Permissions needed for Stage 2. Asking user."); saveState(STATE.PROMPT_CONNECT_STAGE2, serial); } else { handleError(error, `Auto connection failed (Stage 2): ${error.message || error}`); } }
            }
-           // B. After second refresh, try to auto-connect for Flash
            else if (currentState === STATE.PROMPT_REFRESH_2) {
-                dfuUtil.logInfo("Detected state PROMPT_REFRESH_2. Attempting automatic Flash connection...");
-                // Immediately transition state
-                saveState(STATE.CONNECTING_FLASH, serial);
+                dfuUtil.logInfo("Detected PROMPT_REFRESH_2. Auto Flash connect..."); saveState(STATE.CONNECTING_FLASH, serial);
                 try {
-                    // --- Using 500ms DELAY ---
-                    dfuUtil.logInfo("Waiting briefly before auto-connecting (Flash)...");
-                    await sleep(500); // Add a small delay here too for auto-connect
-                    // --- END DELAY ---
-
-                     // DO NOT allow prompt here
-                     await attemptConnection(vid, serial, false);
-                     // currentDevice is updated within attemptConnection
-
-                     dfuUtil.logSuccess(`Auto-reconnected to ${currentDevice.device_.productName} (Ready to Flash!). Serial: ${serial || 'N/A'}`);
-                     saveState(STATE.FLASHING, serial);
-                     await runFlashWorkflow(); // Start flashing
-
-                } catch (error) {
-                     if (error instanceof NeedsUserGestureError) {
-                         // Expected path if permissions didn't persist
-                         dfuUtil.logWarning("Permissions needed for Flash (not persisted). Asking user to click.");
-                         saveState(STATE.PROMPT_CONNECT_FLASH, serial); // Ask user to click button
-                     } else {
-                         handleError(error, `Automatic connection failed (Final Flash): ${error.message || error}`);
-                     }
-                }
-           } else {
-                // If not in a state requiring auto-connect, just ensure UI is up-to-date
-                console.log("No automatic connection action needed for current state:", currentState);
-                updateUI(); // Ensure UI reflects the loaded state correctly
-           }
+                    dfuUtil.logInfo("Waiting briefly before auto-connecting (Flash)..."); await sleep(500); await attemptConnection(vid, serial, false);
+                     dfuUtil.logSuccess(`Auto-reconnected for Flash. Serial: ${serial || 'N/A'}`); saveState(STATE.FLASHING, serial); await runFlashWorkflow();
+                } catch (error) { if (error instanceof NeedsUserGestureError) { dfuUtil.logWarning("Permissions needed for Flash. Asking user."); saveState(STATE.PROMPT_CONNECT_FLASH, serial); } else { handleError(error, `Auto connection failed (Flash): ${error.message || error}`); } }
+           } else { console.log("No auto-connect needed for state:", currentState); updateUI(); }
      }
 
     // --- Initialization Function ---
-    async function initializePage() { // Make initializePage async
+    async function initializePage() {
          console.log("Initializing μCritter Pupdate Page...");
-
-         // --- Cache DOM Element References ---
-         connectButton = document.getElementById("connect");
-         statusDisplay = document.getElementById("status");
-         downloadLog = document.getElementById("downloadLog");
-         const webUsbNotice = document.getElementById("browserNotice");
-         const layoutWrapper = document.querySelector(".layout-wrapper"); // Main flex container
-         const instructionsColumn = document.querySelector(".instructions-column");
-
-         // --- Check WebUSB Support ---
+         connectButton = document.getElementById("connect"); statusDisplay = document.getElementById("status"); downloadLog = document.getElementById("downloadLog");
+         const webUsbNotice = document.getElementById("browserNotice"); const layoutWrapper = document.querySelector(".layout-wrapper"); const instructionsColumn = document.querySelector(".instructions-column");
          const isWebUsbSupported = typeof navigator.usb !== 'undefined';
          if (!isWebUsbSupported) {
-             console.warn("WebUSB is not supported by this browser.");
-             if (webUsbNotice) {
-                 webUsbNotice.innerHTML = `<p><strong>Woof! This browser doesn't support WebUSB.</strong></p><p>Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on a desktop computer (Windows, macOS, Linux, Android) to flash your Critter.</p><p><a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Get Chrome</a> <a class="download-btn" href="https://www.microsoft.com/edge" target="_blank" rel="noopener" style="margin-left: 10px;">Get Edge</a></p>`;
-                 webUsbNotice.hidden = false;
-             }
-             // Hide the main flashing/instructions content if WebUSB is unavailable
-             if (layoutWrapper) layoutWrapper.style.display = 'none';
-             // Stop further initialization
-             return;
-         } else {
-             // Ensure notice is hidden and layout is visible if supported
-             if (webUsbNotice) webUsbNotice.hidden = true;
-             if (layoutWrapper) layoutWrapper.style.display = 'flex'; // Ensure flex display is set
-         }
+             console.warn("WebUSB not supported."); if (webUsbNotice) { webUsbNotice.innerHTML = `<p><strong>Woof! WebUSB not supported.</strong></p><p>Use <strong>Chrome</strong> or <strong>Edge</strong> (Desktop/Android).</p><p><a class="download-btn" href="https://www.google.com/chrome/">Chrome</a> <a class="download-btn" href="https://www.microsoft.com/edge" style="margin-left: 10px;">Edge</a></p>`; webUsbNotice.hidden = false; }
+             if (layoutWrapper) layoutWrapper.style.display = 'none'; return;
+         } else { if (webUsbNotice) webUsbNotice.hidden = true; if (layoutWrapper) layoutWrapper.style.display = 'flex'; }
 
-          // --- Load Previous State (with validation) ---
-          // Await the async loadState function
-          await loadState();
+          await loadState(); // Load state first
 
-         // --- Initialize DFU Utility ---
-         // Ensure dfu-util.js (which defines DfuUtil constructor or dfuUtil object) and dfu.js are loaded
-         // Check specifically for the global dfuUtil object created by dfu-util.js
-         // Use window.dfuUtil to access the global variable set by dfu-util.js
-         if (typeof window.dfuUtil === 'undefined' || typeof dfu === 'undefined') {
-             console.error("DFU library (dfu.js or dfu-util.js) not loaded or initialized!");
-             handleError(new Error("Page setup error: DFU library missing."), "Initialization Failed: Core library missing.");
-             return; // Stop initialization
-         }
-         // Assign to cached variable
+          // Check for essential libraries AFTER state is loaded
+         if (typeof window.dfuUtil === 'undefined') { handleError(new Error("DFU Utility object missing."), "Init Error: DFU util missing."); return; }
          dfuUtil = window.dfuUtil;
+         if (typeof dfu === 'undefined') { handleError(new Error("Core DFU library missing."), "Init Error: Core DFU lib missing."); return; }
 
-         // Now perform initialization using the dfuUtil object
+         // Initialize dfuUtil now that we know it exists
          try {
-             // dfuUtil.init() is likely called by dfu-util.js itself.
-             // Linking the log context is the main task here.
-             if (downloadLog) {
-                dfuUtil.setLogContext(downloadLog);
-                console.log("DfuUtil log context set.");
-             } else {
-                 console.error("Log display element (#downloadLog) not found!");
-                 handleError(new Error("Page setup error: Log display missing."), "Initialization Failed: Log display missing.");
-                 return;
-             }
+             if (downloadLog) { dfuUtil.setLogContext(downloadLog); console.log("Log context set."); }
+             else { console.error("Log element not found!"); handleError(new Error("Log element missing."), "Init Error: Log display missing."); return; }
+             // Explicitly call init here - REMOVED from dfu-util.js
+             dfuUtil.init();
+             console.log("dfuUtil initialized by app.js.");
+         } catch (error) { handleError(error, "Failed to initialize DFU Utility."); return; }
 
-             console.log("DfuUtil initialization checks passed.");
-         } catch (error) {
-              handleError(error, "Failed to initialize DFU Utility.");
-              return; // Stop if DFU util fails
-         }
-
-        // --- Setup DFU Disconnect Callback ---
+        // Setup disconnect callback AFTER dfuUtil is initialized
         dfuUtil.setOnDisconnectCallback((reason) => {
-            console.log("Device disconnect detected.", "Reason:", reason, "Current state:", currentState);
-             // Handle unexpected disconnects during active phases
-             if ( ![STATE.IDLE, STATE.ERROR, STATE.FLASH_COMPLETE,
-                    STATE.WAITING_DISCONNECT, // Expected disconnect after detach
-                    STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, // States between connections
-                    STATE.PROMPT_CONNECT_STAGE2, STATE.PROMPT_CONNECT_FLASH // Waiting for user click
-                   ].includes(currentState) )
-             {
-                 // Only handle error if device wasn't already closed/nulled out
-                  if (currentDevice) {
-                     handleError(new Error("Device disconnected unexpectedly."), "Device Disconnected Unexpectedly!");
-                     currentDevice = null; // Clear the device reference
-                  } else {
-                      dfuUtil.logWarning("Disconnect event for an already cleared device reference.");
-                  }
-             } else if (currentState === STATE.WAITING_DISCONNECT) {
-                 // Log expected disconnect but let the main flow handle state transition
-                 dfuUtil.logInfo("Device disconnected as expected after detach command.");
-                 currentDevice = null; // Clear reference after expected disconnect too
-             } else {
-                 // Disconnect during idle, error, complete, or prompt states - just log
-                 dfuUtil.logInfo(`Device disconnected during non-critical state: ${currentState}`);
-                 currentDevice = null; // Clear reference
-             }
-             // Update UI to reflect disconnected state if needed (e.g., disable buttons)
+            console.log("Disconnect detected.", "Reason:", reason, "State:", currentState);
+             if ( ![STATE.IDLE, STATE.ERROR, STATE.FLASH_COMPLETE, STATE.WAITING_DISCONNECT, STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, STATE.PROMPT_CONNECT_STAGE2, STATE.PROMPT_CONNECT_FLASH].includes(currentState) ) {
+                  if (currentDevice) { handleError(new Error("Device disconnected unexpectedly."), "Device Disconnected!"); currentDevice = null; }
+                  else { dfuUtil.logWarning("Disconnect event for cleared device ref."); }
+             } else if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logInfo("Device disconnected as expected."); currentDevice = null; }
+             else { dfuUtil.logInfo(`Device disconnected during non-critical state: ${currentState}`); currentDevice = null; }
              updateUI();
         });
 
-        // --- Load Firmware Asynchronously ---
-        // Update UI immediately based on loaded state (button might be disabled)
-        updateUI(); // Set initial button state (likely "Loading Firmware...")
-        dfuUtil.loadFirmware("zephyr.signed.bin") // Path to your firmware file
-           .then(() => {
-                firmwareLoaded = true;
-                dfuUtil.logInfo("Firmware loaded and ready.");
-                // Update UI again now that firmware is loaded
-                // This will enable the button if the state is IDLE
-                updateUI();
-            })
-           .catch(err => {
-               firmwareLoaded = false;
-               // Display specific error to user
-               handleError(err, `Could not load firmware: ${err.message}. Please refresh.`);
-               // UI will be updated by handleError to show error state
-           });
+        updateUI(); // Update based on loaded state
+        dfuUtil.loadFirmware("zephyr.signed.bin")
+           .then(() => { firmwareLoaded = true; dfuUtil.logInfo("Firmware loaded."); updateUI(); })
+           .catch(err => { firmwareLoaded = false; handleError(err, `Firmware load failed: ${err.message}. Refresh.`); });
 
-        // --- Add Event Listeners ---
-        if (!connectButton) {
-             handleError(new Error("Page setup error: Connect button missing."), "Initialization Failed: Connect button missing.");
-             return;
-        }
-        connectButton.addEventListener('click', handleConnectClick); // Add main click handler
+        if (!connectButton) { handleError(new Error("Connect button missing."), "Init Error: Connect button missing."); return; }
+        connectButton.addEventListener('click', handleConnectClick);
 
-        // --- Setup OS Instruction Toggling ---
-        const osButtons = document.querySelectorAll('.os-btn');
-        // Ensure instructionsColumn is valid before querying inside it
-        const instructionsSections = instructionsColumn ? instructionsColumn.querySelectorAll('section.instructions[data-ins]') : []; // Select only OS-specific sections
-        const introSection = document.getElementById('intro-instructions'); // Common intro section
-
-        // Function to switch displayed instructions based on OS
+        // Setup OS Instructions Toggling
+        const osButtons = document.querySelectorAll('.os-btn'); const instructionsSections = instructionsColumn ? instructionsColumn.querySelectorAll('section.instructions[data-ins]') : []; const introSection = document.getElementById('intro-instructions');
         function switchOS(os) {
-           // Add check for instructionsColumn existence
-           if (!instructionsSections.length || !introSection || !osButtons.length || !instructionsColumn) {
-               console.warn("Instruction elements missing, cannot switch OS view.");
-               return;
-           }
-           console.log("Switching instructions view to:", os);
-           // Hide all OS-specific sections first
-           instructionsSections.forEach(sec => { sec.hidden = true; });
-           // Show the selected OS section
+           if (!instructionsSections.length || !introSection || !osButtons.length || !instructionsColumn) { console.warn("Instruction elements missing."); return; }
+           console.log("Switching instructions view to:", os); instructionsSections.forEach(sec => { sec.hidden = true; });
            const sectionToShow = instructionsColumn.querySelector(`section.instructions[data-ins="${os}"]`);
-           if(sectionToShow) {
-               sectionToShow.hidden = false;
-           } else {
-               console.warn(`Instruction section for OS '${os}' not found.`);
-               // Fallback to Linux if specific OS not found? Or show nothing?
-               // For now, just warns.
-           }
-           // Always ensure the intro section is visible (unless all instructions are hidden)
-           if (introSection) { // Check if introSection exists
-                introSection.hidden = !sectionToShow; // Hide intro if no specific section is shown
-           }
-           // Update button active state
+           if(sectionToShow) { sectionToShow.hidden = false; } else { console.warn(`Instruction section for OS '${os}' not found.`); }
+           if (introSection) { introSection.hidden = !sectionToShow; }
            osButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.os === os); });
         }
+        const ua = navigator.userAgent; const platform = navigator.platform; let detectedOS = 'linux';
+        if (/android/i.test(ua)) { if (/chrome/i.test(ua) && !/edg/i.test(ua)) { detectedOS = 'android'; console.log("Detected Android (Chrome)."); } else { console.log("Detected Android (Non-Chrome browser - WebUSB might not work)."); detectedOS = 'android'; } }
+        else if (/Win/.test(ua) || /Win/.test(platform)) { detectedOS = 'win'; } else if (/Mac|iPod|iPhone|iPad/.test(platform)) { detectedOS = 'mac'; }
+        console.log("Final Detected OS:", detectedOS); switchOS(detectedOS);
+        osButtons.forEach(btn => { btn.addEventListener('click', (e) => { const selectedOs = e.target.dataset.os; if (selectedOs) { switchOS(selectedOs); } }); });
 
-        // --- Enhanced OS Detection including Android ---
-        const ua = navigator.userAgent;
-        const platform = navigator.platform; // Sometimes more reliable for Mac/iOS
-        let detectedOS = 'linux'; // Default to Linux
-
-        if (/android/i.test(ua)) {
-            // Check if likely Chrome on Android
-            if (/chrome/i.test(ua) && !/edg/i.test(ua)) { // Exclude Edge which includes Chrome UA string
-                 detectedOS = 'android';
-                 console.log("Detected Android (Chrome).");
-            } else {
-                console.log("Detected Android (Non-Chrome browser - WebUSB might not work).");
-                // Keep 'linux' as default or handle specific non-chrome android case if needed
-                // For now, let's stick with linux default to show some instructions.
-                // Alternatively, you could set detectedOS = 'android' and have a notice in those instructions.
-                 detectedOS = 'android'; // Let's show Android instructions but user should use Chrome
-            }
-        } else if (/Win/.test(ua) || /Win/.test(platform)) {
-            detectedOS = 'win';
-        } else if (/Mac|iPod|iPhone|iPad/.test(platform)) {
-            detectedOS = 'mac';
-        }
-        // Linux is the fallback default if none of the above match.
-        console.log("Final Detected OS for instructions:", detectedOS);
-        switchOS(detectedOS); // Set initial view
-
-        // Add click listeners to OS buttons
-        osButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                // Get OS from data attribute and switch view
-                const selectedOs = e.target.dataset.os;
-                if (selectedOs) {
-                    switchOS(selectedOs);
-                }
-            });
-        });
-
-        // --- Trigger Auto-Connect Sequence (Delayed) ---
-        // Run after a short delay to allow the page/scripts to fully settle
-        console.log("Scheduling auto-connect sequence check...");
-        // Make sure runAutoConnectSequence is defined before calling setTimeout
-        if (typeof runAutoConnectSequence === "function") {
-            setTimeout(runAutoConnectSequence, 500); // 500ms delay
-        } else {
-            console.error("runAutoConnectSequence function not defined!");
-        }
-
-
-    } // End initializePage
-
-    // --- Run Initialization on DOMContentLoaded ---
-    // Ensures the DOM is ready before trying to access elements
-    if (document.readyState === 'loading') { // Handle cases where script runs before DOMContentLoaded
-        document.addEventListener("DOMContentLoaded", initializePage);
-    } else { // Handle cases where script runs after DOMContentLoaded
-        initializePage();
+        // Trigger Auto-Connect Sequence
+        console.log("Scheduling auto-connect check..."); if (typeof runAutoConnectSequence === "function") { setTimeout(runAutoConnectSequence, 500); } else { console.error("runAutoConnectSequence not defined!"); }
     }
 
-})(); // End main IIFE
+    if (document.readyState === 'loading') { document.addEventListener("DOMContentLoaded", initializePage); } else { initializePage(); }
+})();
