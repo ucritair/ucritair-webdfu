@@ -39,12 +39,13 @@ var dfu = {};
         this.settings = settings; // Selected DFU interface settings
         this.intfNumber = settings["interface"].interfaceNumber; // Interface number for requests
         this.properties = null; // To store DFU functional descriptor properties
-        this.logDebug = function(msg) {}; // Placeholder, should be overridden
+        // Initialize log functions as placeholders; they should be overridden by the calling script (e.g., dfu-util.js or app.js)
+        this.logDebug = function(msg) { console.debug(msg); }; // Use console.debug for debug level
         this.logInfo = function(msg) { console.log(msg); }; // Fallback
         this.logWarning = function(msg) { console.warn(msg); }; // Fallback
         this.logError = function(msg) { console.error(msg); }; // Fallback
-        this.logProgress = function(done, total) { console.log(done + '/' + total); }; // Fallback
-        this.logSuccess = function(msg) { console.log(msg); }; // Fallback
+        this.logProgress = function(done, total) { console.log(`${done}/${total || '?'}`); }; // Fallback
+        this.logSuccess = function(msg) { console.log(msg); }; // Fallback - added for completeness
     };
 
     /**
@@ -54,7 +55,11 @@ var dfu = {};
      */
     dfu.findDeviceDfuInterfaces = function(device) {
         let interfaces = [];
-        if (!device.configurations) return interfaces; // Guard against unconfigured devices
+        // Check if device and configurations are accessible
+        if (!device || !device.configurations) {
+             console.warn("Device or configurations not available in findDeviceDfuInterfaces");
+             return interfaces;
+        }
 
         for (let conf of device.configurations) {
             for (let intf of conf.interfaces) {
@@ -104,6 +109,10 @@ var dfu = {};
      * @returns {Promise<void>}
      */
     dfu.Device.prototype.open = async function() {
+        // Ensure the device object and settings are valid
+        if (!this.device_ || !this.settings?.configuration || !this.settings?.interface || !this.settings?.alternate) {
+            throw new Error("Device or settings invalid in open()");
+        }
         await this.device_.open();
         const confValue = this.settings.configuration.configurationValue;
         // Select configuration if necessary
@@ -114,6 +123,10 @@ var dfu = {};
 
         // Claim interface if necessary
         const intfNumber = this.settings["interface"].interfaceNumber;
+        // Check if configuration and interfaces exist before claiming
+         if (!this.device_.configuration || !this.device_.configuration.interfaces[intfNumber]) {
+            throw new Error(`Cannot claim interface ${intfNumber}: Configuration or interface not found.`);
+        }
         if (!this.device_.configuration.interfaces[intfNumber].claimed) {
             await this.device_.claimInterface(intfNumber);
         }
@@ -121,21 +134,16 @@ var dfu = {};
         // Select alternate interface if necessary
         const altSetting = this.settings.alternate.alternateSetting;
         let intf = this.device_.configuration.interfaces[intfNumber];
+        if (!intf) {
+            throw new Error(`Cannot select alternate interface: Interface ${intfNumber} not found.`);
+        }
         if (intf.alternate === null ||
-            intf.alternate.alternateSetting != altSetting ||
-            intf.alternates.length > 1) { // Also select if multiple alternates exist, even if current is correct
-            try {
-                await this.device_.selectAlternateInterface(intfNumber, altSetting);
-            } catch (error) {
-                 // Workaround for Chrome issue #711285: Ignore redundant SET_INTERFACE request
-                 // This might happen if the device is already in the correct alternate setting.
-                if (intf.alternate !== null && intf.alternate.alternateSetting == altSetting &&
-                    error.message?.includes("Unable to set device interface.")) {
-                    this.logWarning(`Redundant SET_INTERFACE request ignored for altSetting ${altSetting}`);
-                } else {
-                    throw error; // Rethrow other errors
-                }
-            }
+            intf.alternate.alternateSetting != altSetting) {
+            // Only select if not already selected - avoids Chrome issue #711285 workaround need?
+            // Let's test removing the workaround check: || intf.alternates.length > 1
+            await this.device_.selectAlternateInterface(intfNumber, altSetting);
+        } else {
+             this.logDebug(`Alternate setting ${altSetting} for interface ${intfNumber} already selected.`);
         }
     }
 
@@ -145,14 +153,27 @@ var dfu = {};
      */
     dfu.Device.prototype.close = async function() {
         try {
-            // Attempt to release the interface before closing
-             if (this.device_.opened && this.device_.configuration && this.device_.configuration.interfaces[this.intfNumber]?.claimed) {
-                 await this.device_.releaseInterface(this.intfNumber).catch(e => this.logWarning("Release interface error (ignored): " + e));
+             // Check if device is open before trying to release/close
+             if (!this.device_ || !this.device_.opened) {
+                  this.logDebug("Device already closed or not open.");
+                  return;
              }
+             // Attempt to release the interface before closing, check if claimed
+             if (this.device_.configuration && this.device_.configuration.interfaces[this.intfNumber]?.claimed) {
+                 this.logDebug(`Releasing interface ${this.intfNumber}...`);
+                 await this.device_.releaseInterface(this.intfNumber).catch(e => this.logWarning("Release interface error (ignored): " + e));
+             } else {
+                  this.logDebug(`Interface ${this.intfNumber} not claimed or configuration not set.`);
+             }
+             this.logDebug("Closing device...");
             await this.device_.close();
+             this.logDebug("Device closed.");
         } catch (error) {
-            // Log error but don't throw, as closing might fail if device disconnected unexpectedly
             this.logError("Error during device close: " + error);
+            // Don't re-throw, as the device might be physically disconnected
+        } finally {
+             // Ensure internal state reflects closure, even if errors occurred
+             this.disconnected = true; // Mark as disconnected if not already
         }
     };
 
@@ -185,10 +206,14 @@ var dfu = {};
     /**
      * Reads a string descriptor from the device.
      * @param {number} index - The string descriptor index.
-     * @param {number} [langID=0] - The language ID (0 to get supported languages, typically 0x0409 for US English).
+     * @param {number} [langID=0x0409] - The language ID (defaults to US English).
      * @returns {Promise<string|Array<number>>} - A promise resolving to the string or an array of langIDs if index is 0.
      */
-    dfu.Device.prototype.readStringDescriptor = async function(index, langID = 0) {
+    dfu.Device.prototype.readStringDescriptor = async function(index, langID = 0x0409) { // Default to US English
+        if (index === 0) {
+            // Special case: Read supported language IDs
+            langID = 0;
+        }
         const GET_DESCRIPTOR = 0x06;
         const DT_STRING = 0x03;
         const wValue = (DT_STRING << 8) | index;
@@ -211,36 +236,32 @@ var dfu = {};
                     // Retrieve the full descriptor
                     result = await this.device_.controlTransferIn(request_setup, bLength);
                     if (result.status == "ok" && result.data?.byteLength === bLength) {
-                        // bDescriptorType is the second byte
                         const bDescriptorType = result.data.getUint8(1);
                         if (bDescriptorType !== DT_STRING) {
                              throw new Error(`Incorrect descriptor type: ${bDescriptorType}, expected ${DT_STRING}`);
                         }
-                        // Actual string data starts from the third byte (index 2)
-                        const len = (bLength - 2) / 2; // UCS-2 characters (2 bytes each)
-                        let u16_words = [];
-                        for (let i = 0; i < len; i++) {
-                            u16_words.push(result.data.getUint16(2 + i * 2, true)); // Little-endian
-                        }
-                        if (langID == 0) {
-                            // Return the langID array
-                            return u16_words;
+                        // Actual data starts from the third byte (index 2)
+                        // Handle UCS-2 characters (2 bytes each) or language IDs
+                        if (langID == 0 && index == 0) {
+                            // Return array of supported LangIDs (excluding length and type bytes)
+                             let langIDs = [];
+                             for (let i = 2; i < bLength; i += 2) {
+                                 langIDs.push(result.data.getUint16(i, true)); // Little-endian
+                             }
+                             return langIDs;
                         } else {
-                            // Decode from UCS-2 into a JavaScript string
+                             // Decode UCS-2 string
+                             const len = (bLength - 2) / 2;
+                             let u16_words = [];
+                             for (let i = 0; i < len; i++) {
+                                 u16_words.push(result.data.getUint16(2 + i * 2, true)); // Little-endian
+                             }
                             return String.fromCharCode(...u16_words);
                         }
-                    } else {
-                         throw new Error(`Failed to read full string descriptor: status=${result.status}, length=${result.data?.byteLength}`);
-                    }
-                } else {
-                     return ""; // Empty descriptor (length is 0)
-                }
-            } else {
-                 throw new Error(`Failed to read string descriptor length: status=${result.status}, length=${result.data?.byteLength}`);
-            }
-        } catch (error) {
-            throw `Error reading string descriptor ${index} (langID ${langID}): ${error}`;
-        }
+                    } else { throw new Error(`Failed to read full string descriptor: status=${result.status}, length=${result.data?.byteLength}`); }
+                } else { return ""; /* Empty descriptor (length is 0) */ }
+            } else { throw new Error(`Failed to read string descriptor length: status=${result.status}, length=${result.data?.byteLength}`); }
+        } catch (error) { throw `Error reading string descriptor ${index} (langID ${langID}): ${error}`; }
     };
 
     /**
@@ -249,46 +270,48 @@ var dfu = {};
      */
     dfu.Device.prototype.readInterfaceNames = async function() {
         const DT_INTERFACE = 4;
-        const US_ENGLISH_LANGID = 0x0409;
+        const US_ENGLISH_LANGID = 0x0409; // Standard LangID for interface names
 
         let configs = {};
         let allStringIndices = new Set();
-        if (!this.device_.configurations) return {}; // Guard
+        if (!this.device_.configurations) {
+            this.logWarning("No configurations found on device to read interface names from.");
+            return {};
+        }
 
         for (let configIndex = 0; configIndex < this.device_.configurations.length; configIndex++) {
             try {
-                const rawConfig = await this.readConfigurationDescriptor(configIndex);
-                if (!rawConfig) continue;
-                let configDesc = dfu.parseConfigurationDescriptor(rawConfig);
-                let configValue = configDesc.bConfigurationValue;
+                // Use the configuration from the device object if already selected
+                let config = this.device_.configurations[configIndex];
+                if(!config) continue; // Skip if configuration doesn't exist
+
+                // If we need the raw descriptor (e.g., for parsing sub-descriptors not exposed by WebUSB API)
+                // we would need readConfigurationDescriptor. But for names, we can use the parsed structure.
+
+                let configValue = config.configurationValue;
                 configs[configValue] = {};
 
-                // Find all interface descriptors and collect their iInterface string indices
-                for (let desc of configDesc.descriptors) {
-                    if (desc.bDescriptorType == DT_INTERFACE) {
-                        if (!(desc.bInterfaceNumber in configs[configValue])) {
-                            configs[configValue][desc.bInterfaceNumber] = {};
-                        }
-                        configs[configValue][desc.bInterfaceNumber][desc.bAlternateSetting] = desc.iInterface;
-                        if (desc.iInterface > 0) {
-                            allStringIndices.add(desc.iInterface);
-                        }
+                for(let intf of config.interfaces) {
+                    for(let alt of intf.alternates) {
+                         if (!(intf.interfaceNumber in configs[configValue])) {
+                             configs[configValue][intf.interfaceNumber] = {};
+                         }
+                         // Store the index (iInterface) from the alternate descriptor
+                         configs[configValue][intf.interfaceNumber][alt.alternateSetting] = alt.iInterface;
+                         if (alt.iInterface > 0) {
+                             allStringIndices.add(alt.iInterface);
+                         }
                     }
                 }
-            } catch (error) {
-                this.logWarning(`Could not read/parse config descriptor ${configIndex}: ${error}`);
-            }
+
+            } catch (error) { this.logWarning(`Could not process config ${configIndex} for interface names: ${error}`); }
         }
 
         let strings = {};
         // Retrieve all unique interface name strings
         for (let index of allStringIndices) {
-            try {
-                strings[index] = await this.readStringDescriptor(index, US_ENGLISH_LANGID);
-            } catch (error) {
-                this.logWarning(`Failed to read string descriptor index ${index}: ${error}`);
-                strings[index] = null; // Mark as failed
-            }
+            try { strings[index] = await this.readStringDescriptor(index, US_ENGLISH_LANGID); }
+            catch (error) { this.logWarning(`Failed to read string descriptor index ${index}: ${error}`); strings[index] = null; }
         }
 
         // Map the retrieved strings back into the config structure
@@ -296,7 +319,7 @@ var dfu = {};
             for (let intfNumber in configs[configValue]) {
                 for (let alt in configs[configValue][intfNumber]) {
                     const iIndex = configs[configValue][intfNumber][alt];
-                    configs[configValue][intfNumber][alt] = strings[iIndex] || null; // Use null if reading failed
+                    configs[configValue][intfNumber][alt] = strings[iIndex] || null;
                 }
             }
         }
@@ -308,65 +331,52 @@ var dfu = {};
     /** Parses the raw device descriptor data. */
     dfu.parseDeviceDescriptor = function(data) {
         return {
-            bLength:            data.getUint8(0),
-            bDescriptorType:    data.getUint8(1),
-            bcdUSB:             data.getUint16(2, true), // USB spec version
-            bDeviceClass:       data.getUint8(4),
-            bDeviceSubClass:    data.getUint8(5),
-            bDeviceProtocol:    data.getUint8(6),
-            bMaxPacketSize:     data.getUint8(7), // Max packet size for EP0
-            idVendor:           data.getUint16(8, true),
-            idProduct:          data.getUint16(10, true),
-            bcdDevice:          data.getUint16(12, true), // Device release number
-            iManufacturer:      data.getUint8(14), // Index of manufacturer string
-            iProduct:           data.getUint8(15), // Index of product string
-            iSerialNumber:      data.getUint8(16), // Index of serial number string
-            bNumConfigurations: data.getUint8(17),
+            bLength: data.getUint8(0), bDescriptorType: data.getUint8(1),
+            bcdUSB: data.getUint16(2, true), bDeviceClass: data.getUint8(4),
+            bDeviceSubClass: data.getUint8(5), bDeviceProtocol: data.getUint8(6),
+            bMaxPacketSize: data.getUint8(7), idVendor: data.getUint16(8, true),
+            idProduct: data.getUint16(10, true), bcdDevice: data.getUint16(12, true),
+            iManufacturer: data.getUint8(14), iProduct: data.getUint8(15),
+            iSerialNumber: data.getUint8(16), bNumConfigurations: data.getUint8(17),
         };
     };
 
     /** Parses the raw configuration descriptor data (including sub-descriptors). */
     dfu.parseConfigurationDescriptor = function(data) {
-        let descriptorData = new DataView(data.buffer, data.byteOffset + 9, data.byteLength - 9); // Sub-descriptors start after header
-        let descriptors = dfu.parseSubDescriptors(descriptorData);
+        // Configuration descriptor header is 9 bytes
+        let descriptorData = new DataView(data.buffer, data.byteOffset + 9, data.byteLength - 9);
+        let descriptors = dfu.parseSubDescriptors(descriptorData); // Parse interfaces, endpoints, etc.
         return {
-            bLength:            data.getUint8(0),
-            bDescriptorType:    data.getUint8(1), // Should be 0x02
-            wTotalLength:       data.getUint16(2, true), // Total length of this descriptor + all sub-descriptors
-            bNumInterfaces:     data.getUint8(4),
-            bConfigurationValue:data.getUint8(5), // ID for this configuration
-            iConfiguration:     data.getUint8(6), // Index of string descriptor for this config
-            bmAttributes:       data.getUint8(7), // Bitmap (e.g., self-powered, remote wakeup)
-            bMaxPower:          data.getUint8(8), // Max power consumption (in 2mA units)
-            descriptors:        descriptors // Array of parsed sub-descriptors
+            bLength: data.getUint8(0), bDescriptorType: data.getUint8(1), // Should be 0x02
+            wTotalLength: data.getUint16(2, true), bNumInterfaces: data.getUint8(4),
+            bConfigurationValue: data.getUint8(5), iConfiguration: data.getUint8(6),
+            bmAttributes: data.getUint8(7), bMaxPower: data.getUint8(8),
+            descriptors: descriptors
         };
     };
 
     /** Parses the raw interface descriptor data. */
     dfu.parseInterfaceDescriptor = function(data) {
         return {
-            bLength:            data.getUint8(0),
-            bDescriptorType:    data.getUint8(1), // Should be 0x04
-            bInterfaceNumber:   data.getUint8(2), // ID for this interface
-            bAlternateSetting:  data.getUint8(3), // ID for this alternate setting
-            bNumEndpoints:      data.getUint8(4), // Number of endpoints used (excluding EP0)
-            bInterfaceClass:    data.getUint8(5),
-            bInterfaceSubClass: data.getUint8(6),
-            bInterfaceProtocol: data.getUint8(7),
-            iInterface:         data.getUint8(8), // Index of string descriptor for this interface
-            descriptors:        [] // Placeholder for endpoint/functional descriptors
+            bLength: data.getUint8(0), bDescriptorType: data.getUint8(1), // Should be 0x04
+            bInterfaceNumber: data.getUint8(2), bAlternateSetting: data.getUint8(3),
+            bNumEndpoints: data.getUint8(4), bInterfaceClass: data.getUint8(5),
+            bInterfaceSubClass: data.getUint8(6), bInterfaceProtocol: data.getUint8(7),
+            iInterface: data.getUint8(8), descriptors: [] // Placeholder for sub-descriptors
         };
     };
 
     /** Parses the raw DFU functional descriptor data. */
     dfu.parseFunctionalDescriptor = function(data) {
+        // Basic DFU Functional Descriptor (9 bytes)
+         if (data.byteLength < 9) {
+            console.error("DFU Functional Descriptor too short:", data.byteLength);
+            return null; // Or throw an error
+        }
         return {
-            bLength:           data.getUint8(0),
-            bDescriptorType:   data.getUint8(1), // Should be 0x21
-            bmAttributes:      data.getUint8(2), // DFU attributes bitmap
-            wDetachTimeOut:    data.getUint16(3, true), // Timeout in ms for detach
-            wTransferSize:     data.getUint16(5, true), // Preferred transfer size
-            bcdDFUVersion:     data.getUint16(7, true)  // DFU specification version
+            bLength: data.getUint8(0), bDescriptorType: data.getUint8(1), // Should be 0x21
+            bmAttributes: data.getUint8(2), wDetachTimeOut: data.getUint16(3, true),
+            wTransferSize: data.getUint16(5, true), bcdDFUVersion: data.getUint16(7, true)
         };
     };
 
@@ -380,57 +390,35 @@ var dfu = {};
 
         let remainingData = descriptorData;
         let descriptors = [];
-        let currIntf = null; // Track the current interface descriptor being processed
-        let inDfuIntf = false; // Track if we are inside a DFU interface's scope
+        let currIntf = null;
+        let inDfuIntf = false;
 
-        while (remainingData.byteLength >= 2) { // Need at least length and type bytes
+        while (remainingData.byteLength >= 2) {
             let bLength = remainingData.getUint8(0);
-            // Basic validation for descriptor length
             if (bLength < 2 || bLength > remainingData.byteLength) {
-                console.error(`Invalid descriptor length: ${bLength} (remaining: ${remainingData.byteLength})`);
-                break;
+                console.error(`Invalid descriptor length: ${bLength} (remaining: ${remainingData.byteLength})`); break;
             }
             let bDescriptorType = remainingData.getUint8(1);
             let descData = new DataView(remainingData.buffer, remainingData.byteOffset, bLength);
 
             if (bDescriptorType == DT_INTERFACE) {
                 currIntf = dfu.parseInterfaceDescriptor(descData);
-                // Check if this interface is specifically a DFU interface
-                inDfuIntf = (currIntf.bInterfaceClass == USB_CLASS_APP_SPECIFIC &&
-                             currIntf.bInterfaceSubClass == USB_SUBCLASS_DFU);
-                descriptors.push(currIntf); // Add the interface descriptor to the main list
+                inDfuIntf = (currIntf.bInterfaceClass == USB_CLASS_APP_SPECIFIC && currIntf.bInterfaceSubClass == USB_SUBCLASS_DFU);
+                descriptors.push(currIntf);
             } else if (inDfuIntf && bDescriptorType == DT_DFU_FUNCTIONAL) {
-                // If we are inside a DFU interface, parse the functional descriptor
                 let funcDesc = dfu.parseFunctionalDescriptor(descData);
-                descriptors.push(funcDesc); // Add functional descriptor to the main list as well
-                if (currIntf) {
-                    // Also associate this functional descriptor with its parent interface
-                    currIntf.descriptors.push(funcDesc);
-                }
-            } else {
-                // Handle other descriptor types (like Endpoint) or descriptors outside DFU interfaces
-                let desc = {
-                    bLength: bLength,
-                    bDescriptorType: bDescriptorType,
-                    data: descData // Store raw data for other types if needed later
-                    // Could potentially parse Endpoint descriptors here too if needed
-                };
-                 if (currIntf) {
-                     // Associate with the current interface if we are inside one
-                     currIntf.descriptors.push(desc);
-                 } else {
-                     // Or add to the main list if not currently inside an interface scope
-                     descriptors.push(desc);
+                 if (funcDesc) { // Check if parsing succeeded
+                     descriptors.push(funcDesc);
+                     if (currIntf) { currIntf.descriptors.push(funcDesc); }
                  }
-                 // If we encounter a non-functional descriptor within a DFU interface,
-                 // we might assume the DFU-specific part is over.
-                 // if (inDfuIntf) { inDfuIntf = false; } // Optional: depends on descriptor ordering rules
+            } else {
+                // Store other descriptors generically
+                let desc = { bLength: bLength, bDescriptorType: bDescriptorType, data: descData };
+                 if (currIntf) { currIntf.descriptors.push(desc); }
+                 else { descriptors.push(desc); } // Add to main list if not inside an interface
             }
-
-            // Advance the view to the next descriptor
             remainingData = new DataView(remainingData.buffer, remainingData.byteOffset + bLength);
         }
-
         return descriptors;
     };
 
@@ -445,36 +433,21 @@ var dfu = {};
         const wValue = ((DT_CONFIGURATION << 8) | index);
 
         return this.device_.controlTransferIn({
-            "requestType": "standard",
-            "recipient": "device",
-            "request": GET_DESCRIPTOR,
-            "value": wValue,
-            "index": 0
-        }, 4).then( // Read first 4 bytes to get wTotalLength
-            result => {
-                if (result.status == "ok" && result.data?.byteLength >= 4) {
-                    let wLength = result.data.getUint16(2, true);
-                    // Now read the full descriptor using the obtained length
-                    return this.device_.controlTransferIn({
-                        "requestType": "standard",
-                        "recipient": "device",
-                        "request": GET_DESCRIPTOR,
-                        "value": wValue,
-                        "index": 0
-                    }, wLength);
-                } else {
-                    return Promise.reject(`Failed to read configuration descriptor length: ${result.status}`);
-                }
-            }
-        ).then(
-            result => {
-                if (result.status == "ok") {
-                    return Promise.resolve(result.data);
-                } else {
-                    return Promise.reject(`Failed to read full configuration descriptor: ${result.status}`);
-                }
-            }
-        );
+            "requestType": "standard", "recipient": "device", "request": GET_DESCRIPTOR,
+            "value": wValue, "index": 0
+        }, 4) // Read header first to get wTotalLength
+        .then(result => {
+            if (result.status == "ok" && result.data?.byteLength >= 4) {
+                let wLength = result.data.getUint16(2, true);
+                return this.device_.controlTransferIn({ // Read full descriptor
+                    "requestType": "standard", "recipient": "device", "request": GET_DESCRIPTOR,
+                    "value": wValue, "index": 0
+                }, wLength);
+            } else { throw `Failed to read config descriptor header: ${result.status}`; } })
+        .then(result => {
+            if (result.status == "ok") { return result.data; }
+            else { throw `Failed to read full config descriptor: ${result.status}`; }
+        });
     };
 
     // --- DFU Standard Requests ---
@@ -488,23 +461,12 @@ var dfu = {};
      */
     dfu.Device.prototype.requestOut = function(bRequest, data, wValue = 0) {
         return this.device_.controlTransferOut({
-            "requestType": "class", // DFU requests are class-specific
-            "recipient": "interface", // Target the DFU interface
-            "request": bRequest,
-            "value": wValue,
-            "index": this.intfNumber // DFU interface number
-        }, data).then(
-            result => {
-                if (result.status == "ok") {
-                    return Promise.resolve(result.bytesWritten);
-                } else {
-                    return Promise.reject(result.status);
-                }
-            },
-            error => {
-                // Provide more context in the rejection
-                return Promise.reject(`ControlTransferOut failed (req ${bRequest}, val ${wValue}): ${error}`);
-            }
+            "requestType": "class", "recipient": "interface", "request": bRequest,
+            "value": wValue, "index": this.intfNumber
+        }, data).then( result => {
+                if (result.status == "ok") { return result.bytesWritten; }
+                else { throw result.status; } },
+            error => { throw `ControlTransferOut failed (req ${bRequest}, val ${wValue}): ${error}`; }
         );
     };
 
@@ -517,30 +479,18 @@ var dfu = {};
      */
     dfu.Device.prototype.requestIn = function(bRequest, wLength, wValue = 0) {
         return this.device_.controlTransferIn({
-            "requestType": "class",
-            "recipient": "interface",
-            "request": bRequest,
-            "value": wValue,
-            "index": this.intfNumber
-        }, wLength).then(
-            result => {
-                if (result.status == "ok") {
-                    return Promise.resolve(result.data);
-                } else {
-                    return Promise.reject(result.status);
-                }
-            },
-            error => {
-                 // Provide more context in the rejection
-                return Promise.reject(`ControlTransferIn failed (req ${bRequest}, val ${wValue}, len ${wLength}): ${error}`);
-            }
+            "requestType": "class", "recipient": "interface", "request": bRequest,
+            "value": wValue, "index": this.intfNumber
+        }, wLength).then( result => {
+                if (result.status == "ok") { return result.data; }
+                else { throw result.status; } },
+            error => { throw `ControlTransferIn failed (req ${bRequest}, val ${wValue}, len ${wLength}): ${error}`; }
         );
     };
 
     /** Sends a DFU_DETACH request. */
     dfu.Device.prototype.detach = function() {
-        // wValue = timeout in ms (optional, device-specific)
-        return this.requestOut(dfu.DETACH, undefined, 1000);
+        return this.requestOut(dfu.DETACH, undefined, 1000); // wValue = timeout
     }
 
     /**
@@ -551,78 +501,38 @@ var dfu = {};
     dfu.Device.prototype.waitDisconnected = async function(timeout) {
         let device = this;
         let usbDevice = this.device_;
-        return new Promise(function(resolve, reject) {
+        return new Promise((resolve, reject) => {
             let timeoutID = null;
-            if (timeout > 0) {
-                timeoutID = setTimeout(() => {
-                    navigator.usb.removeEventListener("disconnect", onDisconnect);
-                    // Only reject if disconnect event hasn't already happened
-                    if (device.disconnected !== true) {
-                        reject("Disconnect timeout expired");
-                    }
-                    // If already disconnected, resolve() below handles it
-                }, timeout);
-            }
-
-            const onDisconnect = (event) => {
-                if (event.device === usbDevice) {
-                    if (timeoutID) { clearTimeout(timeoutID); }
-                    device.disconnected = true; // Mark internally
-                    navigator.usb.removeEventListener("disconnect", onDisconnect);
-                    event.stopPropagation(); // Prevent potential bubbling issues
-                    resolve(device); // Resolve the promise with the device object
-                }
-            };
-
-            // Check if already disconnected before adding listener (race condition)
-            if (device.disconnected === true) {
-                if (timeoutID) clearTimeout(timeoutID);
-                resolve(device);
-                return;
-            }
-
+             if (timeout > 0) { timeoutID = setTimeout(() => { navigator.usb.removeEventListener("disconnect", onDisconnect); if (device.disconnected !== true) { reject("Disconnect timeout expired"); } }, timeout); }
+            const onDisconnect = (event) => { if (event.device === usbDevice) { if (timeoutID) { clearTimeout(timeoutID); } device.disconnected = true; navigator.usb.removeEventListener("disconnect", onDisconnect); event.stopPropagation(); resolve(device); } };
+             // Check if already disconnected (race condition)
+             if (device.disconnected === true) { if (timeoutID) clearTimeout(timeoutID); resolve(device); return; }
             navigator.usb.addEventListener("disconnect", onDisconnect);
         });
     };
 
     /** Sends a DFU_DNLOAD request with data for a specific block. */
-    dfu.Device.prototype.download = function(data, blockNum) {
-        return this.requestOut(dfu.DNLOAD, data, blockNum);
-    };
+    dfu.Device.prototype.download = function(data, blockNum) { return this.requestOut(dfu.DNLOAD, data, blockNum); };
     dfu.Device.prototype.dnload = dfu.Device.prototype.download; // Alias
 
     /** Sends a DFU_UPLOAD request to read data for a specific block. */
-    dfu.Device.prototype.upload = function(length, blockNum) {
-        return this.requestIn(dfu.UPLOAD, length, blockNum)
-    };
+    dfu.Device.prototype.upload = function(length, blockNum) { return this.requestIn(dfu.UPLOAD, length, blockNum) };
 
     /** Sends a DFU_CLRSTATUS request to clear error states. */
-    dfu.Device.prototype.clearStatus = function() {
-        return this.requestOut(dfu.CLRSTATUS);
-    };
+    dfu.Device.prototype.clearStatus = function() { return this.requestOut(dfu.CLRSTATUS); };
     dfu.Device.prototype.clrStatus = dfu.Device.prototype.clearStatus; // Alias
 
     /** Sends a DFU_GETSTATUS request to get the device's current state and status. */
     dfu.Device.prototype.getStatus = function() {
-        return this.requestIn(dfu.GETSTATUS, 6).then( // DFU status response is 6 bytes
-            data => {
-                // Basic validation
-                if (data.byteLength !== 6) {
-                     return Promise.reject(`Invalid DFU status response length: ${data.byteLength}`);
-                }
+        return this.requestIn(dfu.GETSTATUS, 6).then( data => {
+                if (data.byteLength !== 6) { return Promise.reject(`Invalid DFU status response length: ${data.byteLength}`); }
                 return Promise.resolve({
-                    // bStatus: Device's interpretation of the error code (0 = OK)
-                    "status": data.getUint8(0),
-                    // bwPollTimeout: Minimum time (ms) device needs before next request
-                    "pollTimeout": data.getUint32(1, true) & 0xFFFFFF, // Lower 3 bytes
-                    // bState: Current state of the DFU device machine
-                    "state": data.getUint8(4),
-                    // iString: Optional string descriptor index (rarely used)
-                    // "iString": data.getUint8(5)
-                });
-             },
-            error =>
-                Promise.reject(`DFU GETSTATUS failed: ${error}`)
+                    "status": data.getUint8(0), // bStatus
+                    "pollTimeout": data.getUint32(1, true) & 0xFFFFFF, // bwPollTimeout (3 bytes)
+                    "state": data.getUint8(4), // bState
+                    // "iString": data.getUint8(5) // iString - rarely used
+                }); },
+            error => Promise.reject(`DFU GETSTATUS failed: ${error}`)
         );
     };
 
@@ -635,21 +545,16 @@ var dfu = {};
     };
 
     /** Sends a DFU_ABORT request. */
-    dfu.Device.prototype.abort = function() {
-        return this.requestOut(dfu.ABORT);
-    };
+    dfu.Device.prototype.abort = function() { return this.requestOut(dfu.ABORT); };
 
     /** Attempts to abort the current operation and return the device to idle state. */
     dfu.Device.prototype.abortToIdle = async function() {
         await this.abort();
         let state = await this.getState();
         if (state == dfu.dfuERROR) {
-            await this.clearStatus();
-            state = await this.getState();
+            await this.clearStatus(); state = await this.getState();
         }
-        if (state != dfu.dfuIDLE) {
-            throw `Failed to return to idle state after abort: state ${state}`;
-        }
+        if (state != dfu.dfuIDLE) { throw `Failed to return to idle state after abort: state ${state}`; }
     };
 
     // --- High-Level Operations ---
@@ -663,57 +568,34 @@ var dfu = {};
      */
     dfu.Device.prototype.do_upload = async function(xfer_size, max_size = Infinity, first_block = 0) {
         let transaction = first_block;
-        let blocks = []; // Store DataView objects
+        let blocks = [];
         let bytes_read = 0;
 
         this.logInfo("Copying data from DFU device to browser...");
-        // Initialize progress
         this.logProgress(0, Number.isFinite(max_size) ? max_size : undefined);
 
-        let result;
-        let bytes_to_read;
+        let result; let bytes_to_read;
         do {
             bytes_to_read = Math.min(xfer_size, max_size - bytes_read);
-            if (bytes_to_read <= 0) break; // Don't request 0 bytes
+            if (bytes_to_read <= 0) break;
 
             result = await this.upload(bytes_to_read, transaction++);
             this.logDebug(`Read ${result.byteLength} bytes (requested ${bytes_to_read}) for block ${transaction-1}`);
 
-            if (result.byteLength > 0) {
-                blocks.push(result); // Store the DataView
-                bytes_read += result.byteLength;
-            }
+            if (result.byteLength > 0) { blocks.push(result); bytes_read += result.byteLength; }
+            if (Number.isFinite(max_size)) { this.logProgress(bytes_read, max_size); }
+            else { this.logProgress(bytes_read); }
 
-            // Update progress
-            if (Number.isFinite(max_size)) {
-                this.logProgress(bytes_read, max_size);
-            } else {
-                this.logProgress(bytes_read);
-            }
-
-            // Stop if we received less than requested (likely end of data)
-            // or if we've reached the max size.
         } while ((bytes_read < max_size) && (result.byteLength === bytes_to_read));
 
-        if (bytes_read === max_size && Number.isFinite(max_size)) {
-             this.logInfo("Read maximum requested size.");
-             // Consider if abort is needed based on specific device/protocol behavior
-             // await this.abortToIdle();
-        } else {
-            this.logInfo("Upload finished.");
-        }
+        if (bytes_read === max_size && Number.isFinite(max_size)) { this.logInfo("Read maximum requested size."); }
+        else { this.logInfo("Upload finished."); }
 
         this.logSuccess(`Read ${bytes_read} bytes total.`);
 
         // Combine the DataViews into a single ArrayBuffer efficiently
-        let totalBuffer = new Uint8Array(bytes_read);
-        let offset = 0;
-        for (const block of blocks) {
-             // Create a Uint8Array view of the DataView's buffer section
-             totalBuffer.set(new Uint8Array(block.buffer, block.byteOffset, block.byteLength), offset);
-             offset += block.byteLength;
-        }
-
+        let totalBuffer = new Uint8Array(bytes_read); let offset = 0;
+        for (const block of blocks) { totalBuffer.set(new Uint8Array(block.buffer, block.byteOffset, block.byteLength), offset); offset += block.byteLength; }
         return new Blob([totalBuffer], { type: "application/octet-stream" });
     };
 
@@ -724,65 +606,32 @@ var dfu = {};
      */
     dfu.Device.prototype.poll_until = async function(state_predicate) {
         let dfu_status;
-        try {
-            dfu_status = await this.getStatus();
-        } catch (error) {
-            this.logError(`poll_until: Initial getStatus failed - ${error}`);
-            throw new Error(`poll_until: Initial getStatus failed - ${error}`);
-        }
+        try { dfu_status = await this.getStatus(); }
+        catch (error) { this.logError(`poll_until: Initial getStatus failed - ${error}`); throw new Error(`poll_until: Initial getStatus failed - ${error}`); }
 
         let device = this;
-        async function async_sleep(duration_ms) {
-            // Basic sleep function using setTimeout
-            return new Promise(resolve => {
-                device.logDebug(`Sleeping for ${duration_ms}ms...`);
-                setTimeout(resolve, duration_ms);
-            });
-        }
+        async function async_sleep(duration_ms) { return new Promise(resolve => { device.logDebug(`Sleeping for ${duration_ms}ms...`); setTimeout(resolve, duration_ms); }); }
 
         while (!state_predicate(dfu_status.state) && dfu_status.state != dfu.dfuERROR) {
-            // Use the pollTimeout reported by the device, with sanity checks
             let pollTimeout = dfu_status.pollTimeout;
-            if (pollTimeout < 5) { // Prevent busy-waiting
-                 pollTimeout = 5;
-            } else if (pollTimeout > 5000) { // Prevent excessively long waits
-                 this.logWarning(`pollTimeout seems high (${pollTimeout}ms), capping to 5000ms`);
-                 pollTimeout = 5000;
-            }
+            if (pollTimeout < 5) { pollTimeout = 5; }
+            else if (pollTimeout > 5000) { this.logWarning(`pollTimeout seems high (${pollTimeout}ms), capping to 5000ms`); pollTimeout = 5000; }
             await async_sleep(pollTimeout);
-            try {
-                 dfu_status = await this.getStatus(); // Poll status again
-            } catch (error) {
-                 this.logError(`poll_until: getStatus failed during loop - ${error}`);
-                 throw new Error(`poll_until: getStatus failed during loop - ${error}`);
-            }
+            try { dfu_status = await this.getStatus(); }
+            catch (error) { this.logError(`poll_until: getStatus failed during loop - ${error}`); throw new Error(`poll_until: getStatus failed during loop - ${error}`); }
         }
 
-        // Handle DFU error state if encountered
         if (dfu_status.state === dfu.dfuERROR) {
              this.logError(`Device entered ERROR state (status=${dfu_status.status})`);
-             try {
-                  await this.clearStatus(); // Attempt to clear the error
-                  dfu_status = await this.getStatus(); // Check state again after clearing
-                  this.logInfo(`Status after clear: state=${dfu_status.state}, status=${dfu_status.status}`);
-                  // If still in error or not the target state, it's a persistent error
-                  if (dfu_status.state === dfu.dfuERROR || !state_predicate(dfu_status.state)) {
-                       throw new Error(`DFU Error Status ${dfu_status.status}`);
-                  }
-                  // If clearing worked and we reached the target state, proceed
-             } catch (clearError) {
-                  throw new Error(`DFU Error Status ${dfu_status.status}, and clear failed: ${clearError}`);
-             }
+             try { await this.clearStatus(); dfu_status = await this.getStatus(); this.logInfo(`Status after clear: state=${dfu_status.state}, status=${dfu_status.status}`);
+                  if (dfu_status.state === dfu.dfuERROR || !state_predicate(dfu_status.state)) { throw new Error(`DFU Error Status ${dfu_status.status}`); }
+             } catch (clearError) { throw new Error(`DFU Error Status ${dfu_status.status}, and clear failed: ${clearError}`); }
         }
-
-        // Return the status object that satisfied the predicate or was reached after clearing error
         return dfu_status;
     };
 
     /** Polls until the device reaches the specified idle state. */
-    dfu.Device.prototype.poll_until_idle = function(idle_state) {
-        return this.poll_until(state => (state == idle_state));
-    };
+    dfu.Device.prototype.poll_until_idle = function(idle_state) { return this.poll_until(state => (state == idle_state)); };
 
     /**
      * Performs a DFU DOWNLOAD operation to write data to the device.
@@ -794,129 +643,62 @@ var dfu = {};
     dfu.Device.prototype.do_download = async function(xfer_size, data, manifestationTolerant) {
         let bytes_sent = 0;
         let expected_size = data.byteLength;
-        let transaction = 0; // DFU block number starts from 0 for download
+        let transaction = 0;
 
-        if (!data || expected_size === 0) {
-            throw new Error("No data provided for download.");
-        }
+        if (!data || expected_size === 0) { throw new Error("No data provided for download."); }
 
         this.logInfo(`Copying data from browser to DFU device (${expected_size} bytes)...`);
-        this.logProgress(bytes_sent, expected_size); // Initial progress
+        this.logProgress(bytes_sent, expected_size);
 
         // Check initial state and clear error if needed
         try {
-             let status = await this.getStatus();
-             this.logDebug(`Initial state: ${status.state}, status: ${status.status}`);
-             if (status.state === dfu.dfuERROR) {
-                  this.logWarning("Device in error state, attempting to clear...");
-                  await this.clearStatus();
-                  status = await this.getStatus(); // Re-check status
-                  if (status.state === dfu.dfuERROR) {
-                       throw new Error(`Device stuck in DFU error state ${status.status}`);
-                  }
-             }
-             // Ensure we are in a state ready for download (typically dfuIDLE)
-             if (status.state !== dfu.dfuIDLE && status.state !== dfu.dfuDNLOAD_IDLE) {
-                 this.logWarning(`Device not in idle state (${status.state}), attempting abort...`);
-                 await this.abortToIdle(); // Try to force idle
-             }
-        } catch(error) {
-             throw new Error(`Failed to get/prepare initial DFU status: ${error}`);
-        }
+             let status = await this.getStatus(); this.logDebug(`Initial state: ${status.state}, status: ${status.status}`);
+             if (status.state === dfu.dfuERROR) { this.logWarning("Device in error state, attempting clear..."); await this.clearStatus(); status = await this.getStatus(); if (status.state === dfu.dfuERROR) { throw new Error(`Device stuck in DFU error state ${status.status}`); } }
+             if (status.state !== dfu.dfuIDLE && status.state !== dfu.dfuDNLOAD_IDLE) { this.logWarning(`Device not in idle state (${status.state}), attempting abort...`); await this.abortToIdle(); }
+        } catch(error) { throw new Error(`Failed to get/prepare initial DFU status: ${error}`); }
 
         // Main download loop
         while (bytes_sent < expected_size) {
             const bytes_left = expected_size - bytes_sent;
             const chunk_size = Math.min(bytes_left, xfer_size);
-            const block_num = transaction++; // DFU block number for this chunk
+            const block_num = transaction++;
             let chunk_data = data.slice(bytes_sent, bytes_sent + chunk_size);
-            let dfu_status; // Declare status variable for this block
+            let dfu_status;
 
             try {
                 this.logDebug(`Sending block ${block_num} (${chunk_size} bytes)...`);
-                await this.download(chunk_data, block_num); // Send data
-                this.logDebug(`Sent ${chunk_size} bytes for block ${block_num}`); // Log sent size
+                await this.download(chunk_data, block_num); this.logDebug(`Sent ${chunk_size} bytes for block ${block_num}`);
+                dfu_status = await this.poll_until_idle(dfu.dfuDNLOAD_IDLE); this.logDebug(`Status after block ${block_num}: state=${dfu_status.state}, status=${dfu_status.status}`);
+            } catch (error) { throw `Error during DFU download block ${block_num}: ${error}`; }
 
-                // Poll until device signals it's ready for the next block (dfuDNLOAD_IDLE)
-                dfu_status = await this.poll_until_idle(dfu.dfuDNLOAD_IDLE);
-                this.logDebug(`Status after block ${block_num}: state=${dfu_status.state}, status=${dfu_status.status}`);
+            if (dfu_status.status != dfu.STATUS_OK) { this.logError(`DFU DOWNLOAD failed on block ${block_num}: State=${dfu_status.state}, Status=${dfu_status.status}`); throw `DFU DOWNLOAD failed state=${dfu_status.state}, status=${dfu_status.status}`; }
 
-            } catch (error) {
-                // Catch errors during download or polling for this block
-                throw `Error during DFU download block ${block_num}: ${error}`;
-            }
-
-            // Check status after polling for this block
-            if (dfu_status.status != dfu.STATUS_OK) {
-                 this.logError(`DFU DOWNLOAD failed on block ${block_num}: State=${dfu_status.state}, Status=${dfu_status.status}`);
-                throw `DFU DOWNLOAD failed state=${dfu_status.state}, status=${dfu_status.status}`;
-            }
-
-            // Update progress based on the chunk size sent
-            bytes_sent += chunk_size;
-            this.logProgress(bytes_sent, expected_size);
+            bytes_sent += chunk_size; this.logProgress(bytes_sent, expected_size);
         }
 
         // Final phase: Send Zero-Length Packet (ZLP) to signal end of data
         this.logDebug("Sending Zero-Length Packet (ZLP) to finalize download...");
         try {
-            let dfu_status; // Declare status variable for ZLP phase
-            await this.download(new ArrayBuffer(0), transaction++); // Send ZLP with next block number
-
-            // Poll after ZLP. Device should transition towards manifest phase.
-            // The target state depends on whether the device is manifestation tolerant.
-             if (manifestationTolerant) {
-                 this.logInfo("Polling for dfuIDLE (manifestation tolerant)...");
-                 // Tolerant devices might go directly to IDLE or briefly through MANIFEST states
-                 dfu_status = await this.poll_until(state => (state == dfu.dfuIDLE || state == dfu.dfuMANIFEST_WAIT_RESET || state == dfu.dfuMANIFEST_SYNC));
-             } else {
-                 this.logInfo("Polling for dfuMANIFEST_SYNC (manifestation not tolerant)...");
-                 // Non-tolerant devices usually require explicit manifestation sync
-                 dfu_status = await this.poll_until(state => (state == dfu.dfuMANIFEST_SYNC || state == dfu.dfuMANIFEST_WAIT_RESET));
-             }
-
+            let dfu_status; await this.download(new ArrayBuffer(0), transaction++);
+             if (manifestationTolerant) { this.logInfo("Polling for dfuIDLE (manifestation tolerant)..."); dfu_status = await this.poll_until(state => (state == dfu.dfuIDLE || state == dfu.dfuMANIFEST_WAIT_RESET || state == dfu.dfuMANIFEST_SYNC)); }
+             else { this.logInfo("Polling for dfuMANIFEST_SYNC (manifestation not tolerant)..."); dfu_status = await this.poll_until(state => (state == dfu.dfuMANIFEST_SYNC || state == dfu.dfuMANIFEST_WAIT_RESET)); }
             this.logDebug(`Status after ZLP poll: state=${dfu_status.state}, status=${dfu_status.status}`);
-
-            // Check status after ZLP polling
-            if (dfu_status.status != dfu.STATUS_OK) {
-                 this.logError(`DFU ZLP/Manifest phase failed: State=${dfu_status.state}, Status=${dfu_status.status}`);
-                throw `DFU ZLP/Manifest phase failed state=${dfu_status.state}, status=${dfu_status.status}`;
-            }
-
-        } catch (error) {
-             // Catch errors specifically during the ZLP send or subsequent poll
-            throw `Error during final DFU download phase (ZLP): ${error}`;
-        }
+            if (dfu_status.status != dfu.STATUS_OK) { this.logError(`DFU ZLP/Manifest phase failed: State=${dfu_status.state}, Status=${dfu_status.status}`); throw `DFU ZLP/Manifest phase failed state=${dfu_status.state}, status=${dfu_status.status}`; }
+        } catch (error) { throw `Error during final DFU download phase (ZLP): ${error}`; }
 
         this.logSuccess(`Wrote ${bytes_sent} bytes`);
         this.logInfo("Manifesting new firmware (via reset)...");
 
-        // --- Final Reset ---
-        // Attempt USB reset to make the device exit DFU mode and run the new firmware.
-        // This is often where OS-specific issues occur (like the original Windows error).
+        // Final Reset
         this.logDebug("Attempting final device reset...");
-        try {
-            await this.device_.reset();
-            this.logInfo("Device reset command sent successfully.");
-        } catch (error) {
-            // Use the refined error handling from the previous step
+        try { await this.device_.reset(); this.logInfo("Device reset command sent successfully."); }
+        catch (error) {
             const errorString = String(error);
-            if (errorString.includes("Unable to reset the device.") ||
-                errorString.includes("Device unavailable.") ||
-                errorString.includes("The device was disconnected.")) {
-                // Log these common, expected errors as warnings/debug, not critical failures
+            if (errorString.includes("Unable to reset the device.") || errorString.includes("Device unavailable.") || errorString.includes("The device was disconnected.")) {
                 this.logWarning(`Expected error during reset (device likely disconnected/re-enumerated): ${errorString}`);
-                // Assume reset happened or will happen, proceed.
-            } else {
-                 // Log unexpected errors during reset more seriously
-                 this.logError(`Unexpected error during final reset: ${errorString}`);
-                 // Optionally re-throw if this should halt the process from the caller's perspective
-                 // throw new Error(`Unexpected error during reset for manifestation: ${error}`);
-            }
+            } else { this.logError(`Unexpected error during final reset: ${errorString}`); /* Optionally re-throw */ }
         }
-
-        // Download process considered complete at this point.
-        return;
+        return; // Download process considered complete
     };
 
 })(); // End IIFE
