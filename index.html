@@ -115,7 +115,7 @@
 
                 <section class="instructions card" data-ins="win" hidden>
                   <h2>Step 2: Windows Pupdate Prep! (Drivers & Restart Required!)</h2>
-                  <p>Howdy, Windows user! Because Windows needs a little extra help recognizing your Critter during the update, we need to use a tool called <strong>Zadig</strong> to install the right drivers *and* perform a specific restart sequence. This is a **one-time setup** per computer. Please follow these steps exactly!</p>
+                   <p>Howdy, Windows user! Because Windows needs a little extra help recognizing your Critter during the update, we need to use a tool called <strong>Zadig</strong> to install the right drivers <strong>and</strong> perform a specific restart sequence. This is a <strong>one-time setup</strong> per computer. Please follow these steps exactly!</p>
 
                   <h3>A. Preparation</h3>
                   <ol>
@@ -127,53 +127,57 @@
                   <ol start="3">
                       <li><strong>Run Zadig as Admin:</strong> Right-click the Zadig file and choose "Run as administrator".</li>
                       <li><strong>Show All Devices:</strong> In Zadig's menu, click <code>Options</code> -> check ✅ <code>List All Devices</code>.</li>
-                      <li><strong>Find Stage 1 Device:</strong> Select <code>MCUBOOT</code> from the dropdown list (USB ID <code>2FE3 0100</code>).
-                          <div class="note-box">🐾 Seeing <code>CAT PROTOTYPE</code>? Whoops! Wrong mode. Go back to Step 1, then re-open Zadig.</div></li>
-                      <li><strong>Select WinUSB:</strong> Ensure the box next to the green arrow says <code>WinUSB</code>.</li>
-                      <li><strong>Install Driver:</strong> Click the big "Replace Driver" / "Install Driver" button. Click "Yes" to prompts.</li>
+                      <li><strong>Find DFU Interface:</strong> Select <code>MCUBOOT</code> from the dropdown list.
+                         <div class="note-box">
+                             <p><strong>Interface Check:</strong> Zadig might show multiple "Interfaces" for <code>MCUBOOT</code> (e.g., Interface 0, Interface 2). You need to select the one used for firmware updates, which is <strong>Interface 2</strong>. Make sure the entry you select in the dropdown corresponds to Interface 2.</p>
+                             <p>Do <strong>NOT</strong> change the driver for Interface 0 (which might be listed as Serial or CDC).</p>
+                             <p>🐾 Seeing <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>? Whoops! Wrong mode. Go back to Step 1, get the right screen, then re-open Zadig.</p></div></li>
+                      <li><strong>Select WinUSB:</strong> Ensure the box next to the big green arrow shows <code>WinUSB</code> for the selected Interface 2.</li>
+                      <li><strong>Install Driver:</strong> Click the large "Replace Driver" or "Install Driver" button. Click "Yes" to prompts. This installs WinUSB specifically for Interface 2.</li>
                       <li><strong>Close Zadig</strong> (for now).</li>
                   </ol>
 
                   <h3>C. Web App - Part 1 (Trigger Stage 2)</h3>
                    <div class="note-box">Now we use the webpage briefly just to get the Critter into its second update stage.</div>
                   <ol start="9">
-                      <li><strong>Back to this Web Page:</strong> Click the big <strong>Flash My Critter!</strong> button 👈.</li>
-                      <li><strong>Browser Pop-up:</strong> Select the device named <code>MCUBOOT</code> and click <strong>Connect</strong>.</li>
-                      <li><strong>Wait for Switch:</strong> The status message here should change to "Switching device mode...". The Critter is now entering Stage 2.</li>
+                      <li><strong>Back to this Web Page:</strong> Click the big <strong>Flash My Critter!</strong> button over there 👈.</li>
+                      <li><strong>Browser Pop-up:</strong> Your browser will ask for permission. Select the device named <code>MCUBOOT</code> and click the <strong>Connect</strong> button in the pop-up.</li>
+                      <li><strong>Wait for Switch:</strong> The status message here should soon say something like "Switching device mode...". The Critter is now entering Stage 2.</li>
                       <li><strong>IMPORTANT:</strong> You can ignore any "REFRESH PAGE" message for now. Leave the Critter plugged in!</li>
                   </ol>
 
                   <h3>D. Zadig - Part 2 (Stage 2 Driver)</h3>
-                    <div class="note-box">Quick! Let's teach Windows about Stage 2 before we restart everything.</div>
+                    <div class="note-box">Quick! Let's teach Windows about Stage 2 while the Critter is plugged in and in the new stage.</div>
                   <ol start="13">
                       <li><strong>Run Zadig as Admin AGAIN:</strong> Open Zadig again (Right-click -> "Run as administrator").</li>
                       <li><strong>Show All Devices AGAIN:</strong> Go to <code>Options</code> -> check ✅ <code>List All Devices</code> again.</li>
-                      <li><strong>Find Stage 2 Device:</strong> Select <code>MCUBOOT</code> again. The USB ID might now be <code>2FE3 FFFF</code> (or stay <code>2FE3 0100</code>). Select it.</li>
-                      <li><strong>Select WinUSB AGAIN:</strong> Make sure <code>WinUSB</code> is selected.</li>
+                      <li><strong>Find Stage 2 DFU Interface:</strong> Select <code>MCUBOOT</code> again. The USB ID might now be <code>2FE3 FFFF</code> (or stay <code>2FE3 0100</code>).
+                         <div class="note-box">Again, make sure you select the entry corresponding to the DFU interface (<strong>Interface 2</strong>).</div></li>
+                      <li><strong>Select WinUSB AGAIN:</strong> Make sure <code>WinUSB</code> is selected next to the green arrow for Interface 2.</li>
                       <li><strong>Install Driver AGAIN:</strong> Click "Replace Driver" / "Install Driver".</li>
                       <li><strong>Close Zadig.</strong> Driver setup is complete!</li>
                   </ol>
 
                  <h3>E. The Big Restart (The Windows Driver Shuffle!)</h3>
-                    <div class="note-box">‼️ **CRITICAL STEP:** To make Windows properly use the new drivers for both stages, we need to do this exact sequence. This clears out any confusion!</div>
+                    <div class="note-box">‼️ <strong>CRITICAL STEP FOR WINDOWS:</strong> To make Windows properly use the new drivers for both stages, we need to do this exact sequence. This clears out any confusion!</div>
                   <ol start="19">
-                      <li>Physically **unplug** the μCritter's USB cable from your PC.</li>
-                      <li>Completely **CLOSE your web browser** (all windows and tabs).</li>
-                      <li>**Re-open** the browser and navigate back to this Pupdate page.</li>
-                      <li>**Plug the μCritter back in** (it should still be showing the <strong>~CAT BOOTLOADER MODE~</strong> screen!).</li>
+                      <li>Physically <strong>unplug</strong> the μCritter's USB cable from your PC.</li>
+                      <li>Completely <strong>CLOSE your web browser</strong> (all windows and tabs).</li>
+                      <li><strong>Re-open</strong> the browser and navigate back to this Pupdate page.</li>
+                      <li><strong>Plug the μCritter back in</strong> (it should still be showing the <strong>~CAT BOOTLOADER MODE~</strong> screen!).</li>
                   </ol>
 
                  <h3>F. Web App - Start Fresh & Pupdate!</h3>
-                   <div class="note-box">Because we restarted the browser, the webpage is starting fresh. But now that the drivers are installed, the *whole process* will work smoothly!</div>
+                   <div class="note-box">Because we restarted the browser, the webpage is starting fresh. But now that the drivers are installed correctly for <strong>both</strong> stages, the full update process should work smoothly!</div>
                  <ol start="23">
                      <li>Click the big <strong>Flash My Critter!</strong> button 👈 one more time.</li>
-                     <li><strong>Follow the Prompts:</strong> Now, simply follow all the status messages next to the button.
+                     <li><strong>Follow the Prompts:</strong> Now, simply follow all the status messages next to the button. It should guide you through the connect-refresh-connect sequence without needing Zadig again:
                          <ul>
                             <li>Select <code>MCUBOOT</code> in the browser pop-up when asked.</li>
                             <li>Click <strong>REFRESH PAGE</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd>) when the status tells you to.</li>
-                            <li>Click the button again ("Connect Stage 2"?) after the first refresh if needed.</li>
+                            <li>Click the button again ("Connect Stage 2"?) after the first refresh if needed (select <code>MCUBOOT</code> if asked).</li>
                             <li>Click <strong>REFRESH PAGE AGAIN</strong> when the status tells you to.</li>
-                            <li>Click the button one last time ("Connect to Flash"?) after the second refresh if needed.</li>
+                            <li>Click the button one last time ("Connect to Flash"?) after the second refresh if needed (select <code>MCUBOOT</code> if asked).</li>
                          </ul>
                      </li>
                      <li><strong>Pupdate Time!</strong> The firmware flashing should begin automatically after the final connection!</li>
