@@ -274,15 +274,10 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
         if (interfaceIndex < 0 || interfaceIndex >= interfaces.length) {
              console.warn(`Invalid interface index ${interfaceIndex}, using 0.`);
              interfaceIndex = 0;
-             // Optionally throw: throw new Error(`Selected interface index ${interfaceIndex} is invalid.`);
         }
 
-        // Fix names before creating the dfu.Device if needed
-        // Run async but don't block connection
         fixInterfaceNames(usbDevice, interfaces).catch(err => console.warn("Failed to fix interface names:", err));
 
-        // Create the specific DFU device object
-        // Always use dfu.Device now
         let dfuDevice = new dfu.Device(usbDevice, interfaces[interfaceIndex]);
 
         try {
@@ -294,7 +289,7 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
             console.log("Device opened.");
         } catch (error) {
             console.error("Failed to open device:", error);
-            throw error; // Rethrow for the caller
+            throw error;
         }
 
         let desc = {};
@@ -302,17 +297,11 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
             console.log("Getting DFU properties...");
             desc = await getDFUDescriptorProperties(dfuDevice);
              console.log("DFU properties:", desc);
-             // Store properties on the device object
              dfuDevice.properties = desc;
         } catch (error) {
              console.warn("Could not get DFU properties: " + error);
-             // Proceed anyway, might be a non-standard DFU device or handled later
         }
 
-        // --- REMOVED DfuSe Check ---
-        // No need to check DFUVersion or re-instantiate as dfuse.Device
-
-        // Bind logging methods from this closure
         dfuDevice.logDebug = logDebug;
         dfuDevice.logInfo = logInfo;
         dfuDevice.logWarning = logWarning;
@@ -321,6 +310,7 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
         dfuDevice.logSuccess = logSuccess;
 
         // Set the internal device variable (important for onUnexpectedDisconnect)
+        // Ensure this assignment happens *after* the object is fully configured
         device = dfuDevice;
         console.log("Device connection established:", device);
         return device; // Return the dfu.Device object
@@ -362,7 +352,6 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
                 })
                 .then(blob => {
                      if (blob.size === 0) {
-                         // Double check blob size after fetch resolves
                          throw new Error("Fetched firmware blob is empty (blob.size is 0).");
                      }
                     firmwareReader.readAsArrayBuffer(blob);
@@ -382,12 +371,16 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
 
     // --- Initialize Basic Listeners ---
      function init() {
+        // This function is now intended to be called by app.js explicitly
         if (typeof navigator.usb !== 'undefined') {
+             // Remove previous listener if exists, to prevent duplicates on multiple calls
+             try {
+                 navigator.usb.removeEventListener("disconnect", onUnexpectedDisconnect);
+             } catch(e) { /* ignore */ }
              navigator.usb.addEventListener("disconnect", onUnexpectedDisconnect);
-             console.log("Disconnect listener added.");
+             console.log("Disconnect listener added/updated by dfuUtil.init().");
         } else {
              console.warn('WebUSB not available.');
-             // UI update for no WebUSB is handled in app.js now
         }
     }
 
@@ -395,20 +388,18 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
     // --- Public API ---
     return {
         init: init,
-        connect: connect, // Expose the core connect function
-        loadFirmware: loadFirmware, // Expose firmware loader
-        getFirmwareFile: getFirmwareFile, // Expose firmware getter
-        setOnDisconnectCallback: setOnDisconnectCallback, // Allow app.js to handle disconnects
-        setLogContext: setLogContext, // Expose log context setter
-        logInfo: logInfo, // Expose logging functions
+        connect: connect,
+        loadFirmware: loadFirmware,
+        getFirmwareFile: getFirmwareFile,
+        setOnDisconnectCallback: setOnDisconnectCallback,
+        setLogContext: setLogContext,
+        logInfo: logInfo,
         logWarning: logWarning,
         logError: logError,
         logProgress: logProgress,
         logSuccess: logSuccess,
-        clearLog: clearLog, // Expose log clearing
-        getDevice: function() { return device; }, // Way to get current internal device reference
-        // formatDFUSummary: formatDFUSummary, // Expose helpers if needed
-        // niceSize: niceSize,
+        clearLog: clearLog,
+        getDevice: function() { return device; },
     };
 
 })();
