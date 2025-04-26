@@ -853,7 +853,7 @@
                  <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>, go back to Step 1 and retry DFU mode before doing Zadig.</div>
             </li>
              <li><strong>Wait for Disconnect & Stage 2:</strong> The device will connect, then disconnect as it switches to Stage 2. The page status *might* eventually prompt you to Refresh, but **IGNORE THAT PROMPT FOR NOW!** Wait about 5-10 seconds for Windows to recognize the Stage 2 device.</li>
-             <li><strong>Install for Stage 2:</strong> Re-open Zadig (as Admin). Go to `Options` → `List All Devices` again. Now, find the *new* <code>MCUBOOT</code> device in the list (it might appear briefly and could have USB ID <code>2FE3:FFFF</code> or still <code>2FE3:0100</code>). Select it. Ensure <code>WinUSB</code> is selected. Click "Replace/Install Driver" again. Close Zadig.</li>
+             <li><strong>Install for Stage 2:</strong> Re-open Zadig (as Admin). Go to `Options` → `List All Devices` again. Now, find the *new* <code>MCUBOOT</code> device in the list (it might appear briefly and will likely have USB ID <code>2FE3:FFFF</code> or could still be <code>2FE3:0100</code>). Select it. Ensure <code>WinUSB</code> is selected. Click "Replace/Install Driver" again. Close Zadig.</li>
              <li><strong>HARDWARE & BROWSER RESTART (CRITICAL):</strong>
                 <ul>
                     <li><strong>Unplug</strong> the μCritter's USB cable.</li>
