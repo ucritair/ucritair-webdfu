@@ -206,7 +206,7 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", 
                         <p><small><strong>Log Out Required?</strong> If this command added you to the <code>plugdev</code> group (check with <code>groups</code>), you <strong>MUST log out completely</strong> and log back in for permissions to work correctly!</small></p>
                    </div>
                    <div class="note-box">
-                        <p><strong>Snap/Flatpak Browsers:</strong> If you installed Chromium/Chrome via <strong>Snap</strong> (common on Ubuntu), you might also need to grant it explicit USB access by running: <br/><code>sudo snap connect chromium:raw-usb</code><br/>(Replace `chromium` if needed for Chrome). Restart the browser afterwards. If you use <strong>Flatpak</strong>, check its permissions (e.g., using Flatseal). Sometimes, installing Chrome directly from Google (as a `.deb` package) avoids these sandboxing issues.</p>
+                        <p><strong>Access Denied Error with Chromium from Snap/Flatpak</strong> If you installed Chromium/Chrome via <strong>Snap</strong> (common on Ubuntu), you may receive an Access Denied error. You might need to grant it explicit USB access by running: <br/><code>sudo snap connect chromium:raw-usb</code><br/>(Replace `chromium` if needed for Chrome). Restart the browser afterwards. If you use <strong>Flatpak</strong>, check its permissions (e.g., using Flatseal). Sometimes, installing Chrome directly from Google (as a `.deb` package) avoids these sandboxing issues.</p>
                    </div>
 
                   <h3>B. Linux Pupdate Dance! (After Setup & Login)</h3>
