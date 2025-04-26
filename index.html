@@ -122,12 +122,12 @@
                   <ol start="3">
                       <li><strong>Run Zadig as Admin:</strong> Right-click the Zadig file and choose "Run as administrator".</li>
                       <li><strong>Show All Devices:</strong> In Zadig's menu, click <code>Options</code> -> check ✅ <code>List All Devices</code>.</li>
-                      <li><strong>Find DFU Interface:</strong> Select <code>MCUBOOT</code> from the dropdown list.
+                      <li><strong>Find DFU Interface (Interface 2):</strong> Select <code>MCUBOOT</code> from the dropdown list.
                          <div class="note-box">
-                             <p><strong>Interface Check:</strong> Zadig might show multiple "Interfaces" for <code>MCUBOOT</code> (e.g., Interface 0, Interface 2). You need to select the one used for firmware updates, which is <strong>Interface 2</strong>. Make sure the entry you select in the dropdown corresponds to Interface 2.</p>
-                             <p>Do <strong>NOT</strong> change the driver for Interface 0 (which might be listed as Serial or CDC).</p>
+                             <p><strong>Interface Check:</strong> Zadig usually shows multiple "Interfaces" for <code>MCUBOOT</code> in this first stage (e.g., Interface 0, Interface 2). You need to select the one used for firmware updates, which is <strong>Interface 2</strong>. Make sure the entry you select in the dropdown specifically mentions Interface 2.</p>
+                             <p>Do <strong>NOT</strong> change the driver for Interface 0 (the Serial/CDC interface).</p>
                              <p>🐾 Seeing <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>? Whoops! Wrong mode. Go back to Step 1, get the right screen, then re-open Zadig.</p></div></li>
-                      <li><strong>Select WinUSB:</strong> Ensure the box next to the big green arrow shows <code>WinUSB</code> for the selected Interface 2.</li>
+                      <li><strong>Select WinUSB:</strong> Ensure the box next to the big green arrow shows <code>WinUSB</code> for the selected <strong>Interface 2</strong>.</li>
                       <li><strong>Install Driver:</strong> Click the large "Replace Driver" or "Install Driver" button. Click "Yes" to prompts. This installs WinUSB specifically for Interface 2.</li>
                       <li><strong>Close Zadig</strong> (for now).</li>
                   </ol>
@@ -146,9 +146,9 @@
                   <ol start="13">
                       <li><strong>Run Zadig as Admin AGAIN:</strong> Open Zadig again (Right-click -> "Run as administrator").</li>
                       <li><strong>Show All Devices AGAIN:</strong> Go to <code>Options</code> -> check ✅ <code>List All Devices</code> again.</li>
-                      <li><strong>Find Stage 2 DFU Interface:</strong> Select <code>MCUBOOT</code> again. The USB ID might now be <code>2FE3 FFFF</code> (or stay <code>2FE3 0100</code>).
-                         <div class="note-box">Again, make sure you select the entry corresponding to the DFU interface (<strong>Interface 2</strong>).</div></li>
-                      <li><strong>Select WinUSB AGAIN:</strong> Make sure <code>WinUSB</code> is selected next to the green arrow for Interface 2.</li>
+                      <li><strong>Find Stage 2 Device:</strong> Select <code>MCUBOOT</code> again from the dropdown.
+                         <div class="note-box">In this second stage, Zadig should only show <strong>one</strong> <code>MCUBOOT</code> entry (the USB ID might be <code>2FE3 FFFF</code> or stay <code>2FE3 0100</code>). Select this single entry. No need to worry about interface numbers here.</div></li>
+                      <li><strong>Select WinUSB AGAIN:</strong> Make sure <code>WinUSB</code> is selected next to the green arrow.</li>
                       <li><strong>Install Driver AGAIN:</strong> Click "Replace Driver" / "Install Driver".</li>
                       <li><strong>Close Zadig.</strong> Driver setup is complete!</li>
                   </ol>
