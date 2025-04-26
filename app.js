@@ -254,9 +254,10 @@
              // Check if dfuse object and Device constructor exist before using instanceof
             const isDfuSeDevice = typeof dfuse !== 'undefined' && typeof dfuse.Device === 'function' && currentDevice instanceof dfuse.Device;
             dfuseFields.hidden = !isDfuSeDevice;
-            console.log("DfuSe fields hidden:", dfuseFields.hidden);
+            // console.log("DfuSe fields hidden:", dfuseFields.hidden); // Optional: keep for debugging
         } else {
-            console.warn("DfuSe fields element not found.");
+            // Only warn once if element not found during init maybe?
+            // console.warn("DfuSe fields element not found.");
         }
     }
 
@@ -327,6 +328,7 @@
                   const connectedDfuDevice = await dfuUtil.connect(matchingDevice);
                   connectAttempts = 0; // Reset attempts on success
                   dfuUtil.logSuccess(`Connected to permitted device.`);
+                  currentDevice = connectedDfuDevice; // Store reference
                   return connectedDfuDevice; // Return the dfu.Device/dfuse.Device object
               } else {
                    dfuUtil.logInfo("No matching permitted device found.");
@@ -356,6 +358,7 @@
               const connectedDfuDevice = await dfuUtil.connect(selectedUsbDevice);
               connectAttempts = 0; // Reset attempts on success
               dfuUtil.logSuccess(`Connected to user-selected device.`);
+              currentDevice = connectedDfuDevice; // Store reference
               return connectedDfuDevice; // Return the dfu.Device/dfuse.Device object
            } catch(error) {
                // Handle specific errors from requestDevice
@@ -479,9 +482,9 @@
 
              try {
                  // Allow user prompt for the first connection attempt
-                 currentDevice = await attemptConnection(vid, null, true);
-                 // attemptConnection returns dfu.Device or dfuse.Device
-                 // No need to check currentDevice here, attemptConnection throws on failure
+                 // Store result in a temp variable, `currentDevice` updated within attemptConnection
+                 await attemptConnection(vid, null, true);
+                 // No need to check currentDevice here, attemptConnection throws on failure or updates it
 
                  // *** VERIFY DEVICE IS MCUBOOT ***
                  if (!currentDevice || !currentDevice.device_ || currentDevice.device_.productName !== 'MCUBOOT') {
@@ -537,7 +540,8 @@
                   else if (error.message?.includes("Incorrect device connected")) {
                       // Handle the specific error thrown for wrong device type
                       handleError(error, "Wrong mode! Put Critter in DFU (Step 1) and try again.");
-                       if (currentDevice) { try { await currentDevice.close(); } catch(e) { /* ignore close error */ } currentDevice = null; } // Close wrong device
+                       // currentDevice might be the wrong device, try closing it
+                       if (currentDevice) { try { await currentDevice.close(); } catch(e) { /* ignore close error */ } currentDevice = null; }
                        clearState(); // Reset fully
                   }
                    else {
@@ -564,8 +568,8 @@
               dfuUtil.logInfo("Attempting Stage 2 connection after user click...");
               try {
                   // Allow user prompt again for this stage, using stored serial
-                  currentDevice = await attemptConnection(vid, serial, true);
-                  // No need to check currentDevice, error thrown on failure
+                  await attemptConnection(vid, serial, true);
+                  // No need to check currentDevice, error thrown on failure or updates it
 
                   dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`);
                   saveState(STATE.WAITING_STABLE, serial);
@@ -605,8 +609,8 @@
               dfuUtil.logInfo("Attempting final connection for flashing after user click...");
               try {
                   // Allow user prompt for the final time, using stored serial
-                  currentDevice = await attemptConnection(vid, serial, true);
-                   // No need to check currentDevice, error thrown on failure
+                  await attemptConnection(vid, serial, true);
+                   // No need to check currentDevice, error thrown on failure or updates it
 
                   dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Ready to Flash!). Serial: ${serial || 'N/A'}`);
 
@@ -658,8 +662,8 @@
                saveState(STATE.CONNECTING_STAGE2, serial);
                try {
                     // DO NOT allow prompt here - rely on existing permissions granted before refresh
-                    currentDevice = await attemptConnection(vid, serial, false);
-                    // No need to check currentDevice, error thrown on failure
+                    await attemptConnection(vid, serial, false);
+                    // No need to check currentDevice, error thrown on failure or updates it
 
                     dfuUtil.logSuccess(`Auto-reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`);
                     saveState(STATE.WAITING_STABLE, serial);
@@ -699,8 +703,8 @@
                 saveState(STATE.CONNECTING_FLASH, serial);
                 try {
                      // DO NOT allow prompt here
-                     currentDevice = await attemptConnection(vid, serial, false);
-                     // No need to check currentDevice, error thrown on failure
+                     await attemptConnection(vid, serial, false);
+                     // No need to check currentDevice, error thrown on failure or updates it
 
                      dfuUtil.logSuccess(`Auto-reconnected to ${currentDevice.device_.productName} (Ready to Flash!). Serial: ${serial || 'N/A'}`);
                      saveState(STATE.FLASHING, serial);
@@ -739,7 +743,7 @@
          if (!isWebUsbSupported) {
              console.warn("WebUSB is not supported by this browser.");
              if (webUsbNotice) {
-                 webUsbNotice.innerHTML = `<p><strong>Woof! This browser doesn't support WebUSB.</strong></p><p>Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on a desktop computer (Windows, macOS, Linux) to flash your Critter.</p><p><a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Get Chrome</a> <a class="download-btn" href="https://www.microsoft.com/edge" target="_blank" rel="noopener" style="margin-left: 10px;">Get Edge</a></p>`;
+                 webUsbNotice.innerHTML = `<p><strong>Woof! This browser doesn't support WebUSB.</strong></p><p>Please use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on a desktop computer (Windows, macOS, Linux, Android) to flash your Critter.</p><p><a class="download-btn" href="https://www.google.com/chrome/" target="_blank" rel="noopener">Get Chrome</a> <a class="download-btn" href="https://www.microsoft.com/edge" target="_blank" rel="noopener" style="margin-left: 10px;">Get Edge</a></p>`;
                  webUsbNotice.hidden = false;
              }
              // Hide the main flashing/instructions content if WebUSB is unavailable
@@ -759,40 +763,26 @@
          // --- Initialize DFU Utility ---
          // Ensure dfu-util.js (which defines DfuUtil constructor or dfuUtil object) and dfu.js are loaded
          // Check specifically for the global dfuUtil object created by dfu-util.js
-         if (typeof dfuUtil === 'undefined' || typeof dfu === 'undefined') {
-            // Try finding the constructor if the object isn't global yet (less ideal)
-             if (typeof DfuUtil === 'undefined' || typeof dfu === 'undefined') {
-                console.error("DFU library (dfu.js or dfu-util.js) not loaded or initialized!");
-                handleError(new Error("Page setup error: DFU library missing."), "Initialization Failed: Core library missing.");
-                return; // Stop initialization
-             } else {
-                  // Fallback: If constructor exists but object doesn't, try creating it.
-                  // This assumes dfu-util.js exports a constructor named DfuUtil.
-                  try {
-                      window.dfuUtil = new DfuUtil(); // Attempt instantiation
-                  } catch (e) {
-                       console.error("Failed to instantiate DfuUtil:", e);
-                       handleError(new Error("Page setup error: Failed to create DFU utility."), "Initialization Failed: Could not create DFU utility.");
-                       return;
-                  }
-             }
+         // Use window.dfuUtil to access the global variable set by dfu-util.js
+         if (typeof window.dfuUtil === 'undefined' || typeof dfu === 'undefined') {
+             console.error("DFU library (dfu.js or dfu-util.js) not loaded or initialized!");
+             handleError(new Error("Page setup error: DFU library missing."), "Initialization Failed: Core library missing.");
+             return; // Stop initialization
          }
-         // Assign to cached variable (might be redundant if dfu-util.js already made it global)
+         // Assign to cached variable
          dfuUtil = window.dfuUtil;
 
          // Now perform initialization using the dfuUtil object
          try {
-             // dfuUtil.init() might already be called by dfu-util.js itself. Check if needed.
-             // If dfu-util.js ends with dfuUtil.init(), calling it again might be harmless or unnecessary.
-             // Assuming dfu-util.js doesn't call init automatically:
-             // dfuUtil.init(); // Initialize DFU core parts
-
-             // Link log output - this should always be done here.
+             // dfuUtil.init() is likely called by dfu-util.js itself.
+             // Linking the log context is the main task here.
              if (downloadLog) {
                 dfuUtil.setLogContext(downloadLog);
                 console.log("DfuUtil log context set.");
              } else {
                  console.error("Log display element (#downloadLog) not found!");
+                 handleError(new Error("Page setup error: Log display missing."), "Initialization Failed: Log display missing.");
+                 return;
              }
 
              console.log("DfuUtil initialization checks passed.");
@@ -850,7 +840,10 @@
            });
 
         // --- Add Event Listeners ---
-        if (!connectButton) { console.error("Connect button lost after loading state!"); return; }
+        if (!connectButton) {
+             handleError(new Error("Page setup error: Connect button missing."), "Initialization Failed: Connect button missing.");
+             return;
+        }
         connectButton.addEventListener('click', handleConnectClick); // Add main click handler
 
         // --- Setup OS Instruction Toggling ---
@@ -875,21 +868,40 @@
                sectionToShow.hidden = false;
            } else {
                console.warn(`Instruction section for OS '${os}' not found.`);
+               // Fallback to Linux if specific OS not found? Or show nothing?
+               // For now, just warns.
            }
-           // Always ensure the intro section is visible
-           introSection.hidden = false;
+           // Always ensure the intro section is visible (unless all instructions are hidden)
+           introSection.hidden = !sectionToShow; // Hide intro if no specific section is shown
            // Update button active state
            osButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.os === os); });
         }
 
-        // Detect OS and set initial view
-         const ua = navigator.userAgent;
-         // Improved OS detection, default to linux if unsure
-         // Use navigator.platform for potentially better Mac detection
-         const platform = navigator.platform;
-         const detectedOS = /Win/.test(ua) ? "win" : /Mac|iPod|iPhone|iPad/.test(platform) ? "mac" : /Linux/.test(ua) ? "linux" : "linux"; // Default to Linux
-         console.log("Detected OS:", detectedOS);
-         switchOS(detectedOS);
+        // --- Enhanced OS Detection including Android ---
+        const ua = navigator.userAgent;
+        const platform = navigator.platform; // Sometimes more reliable for Mac/iOS
+        let detectedOS = 'linux'; // Default to Linux
+
+        if (/android/i.test(ua)) {
+            // Check if likely Chrome on Android
+            if (/chrome/i.test(ua) && !/edg/i.test(ua)) { // Exclude Edge which includes Chrome UA string
+                 detectedOS = 'android';
+                 console.log("Detected Android (Chrome).");
+            } else {
+                console.log("Detected Android (Non-Chrome browser - WebUSB might not work).");
+                // Keep 'linux' as default or handle specific non-chrome android case if needed
+                // For now, let's stick with linux default to show some instructions.
+                // Alternatively, you could set detectedOS = 'android' and have a notice in those instructions.
+                 detectedOS = 'android'; // Let's show Android instructions but user should use Chrome
+            }
+        } else if (/Win/.test(ua) || /Win/.test(platform)) {
+            detectedOS = 'win';
+        } else if (/Mac|iPod|iPhone|iPad/.test(platform)) {
+            detectedOS = 'mac';
+        }
+        // Linux is the fallback default if none of the above match.
+        console.log("Final Detected OS for instructions:", detectedOS);
+        switchOS(detectedOS); // Set initial view
 
         // Add click listeners to OS buttons
         osButtons.forEach(btn => {

@@ -17,7 +17,7 @@
     <script defer src="dfu-util.js"></script>
     <script defer src="app.js"></script>
 
-    </head>
+  </head>
 
   <body>
     <div class="container">
@@ -32,7 +32,7 @@
     <div class="container">
 
         <div id="readFirstWarning" class="note-box read-first-warning">
-             <p><strong>Hold Your Critters!</strong> 🐴 Before clicking Flash, please read *all* instructions for your OS below (use buttons to switch). Important info (drivers, refresh steps!) ensures a smooth pupdate.</p>
+             <p><strong>Hold Your Critters!</strong> 🐴 Before clicking Flash, please read *all* instructions for your OS below (use buttons to switch). Important info (drivers, OTG, refresh steps!) ensures a smooth pupdate.</p>
         </div>
 
         <div class="layout-wrapper">
@@ -74,7 +74,7 @@
                         <button class="os-btn" data-os="mac">macOS</button>
                         <button class="os-btn" data-os="win">Windows</button>
                         <button class="os-btn" data-os="linux">Linux</button>
-                    </div>
+                        <button class="os-btn" data-os="android">Android</button> </div>
                 </div>
 
                 <section id="intro-instructions" class="instructions card">
@@ -181,9 +181,43 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", 
                    <p>Watch progress log. "Pupdate Complete!" = Success! Critter reboots.</p>
                 </section>
 
+                <section class="instructions card" data-ins="android" hidden>
+                  <h2>Step 2: Android Prep & Flashing</h2>
+                  <p>Android needs the right browser, connection, and maybe a setting toggle.</p>
+                  <div class="note-box"><strong>Browser Requirement:</strong> You MUST use <strong>Google Chrome</strong> on Android for WebUSB to work. Other browsers likely won't function.</div>
+                  <h3>A. Connect & Check OTG</h3>
+                  <ol>
+                    <li>Ensure Critter shows DFU Bootloader screen (Step 1).</li>
+                    <li><strong>Connect Critter to Phone:</strong>
+                        <ul>
+                            <li>Use a **USB-C to USB-C cable**.</li>
+                            <li>*OR* use a **USB OTG adapter** (USB-C male to USB-A female) plugged into your phone, then connect the Critter's standard USB cable to the adapter.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Check for OTG Setting (If Needed):</strong>
+                        <ul>
+                            <li>Many phones enable OTG automatically.</li>
+                            <li>If the Critter isn't detected later, check your phone's settings for "OTG", often under "Connected Devices", "Connectivity", or "Advanced". Enable it if found.</li>
+                            <li>You can also use a "USB OTG Checker" app from the Play Store to verify your phone's support beforehand.</li>
+                        </ul>
+                    </li>
+                  </ol>
+                  <h3>B. Android Flashing Dance</h3>
+                   <p>With Critter connected (in DFU) and OTG potentially enabled, follow the prompts next to the Flash button in Chrome:</p>
+                  <ol start="4"> <li>Click the <strong>Flash Button</strong> in the other column (text may vary).</li>
+                    <li>If browser pop-up appears, select <code>MCUBOOT</code>, click <strong>Connect</strong>.
+                       <div class="note-box"><strong>Heads Up!</strong> Seeing <code>CAT PROTOTYPE</code>? Not in DFU mode! Redo Step 1.</div>
+                    </li>
+                    <li>Status message will say when to <strong>Refresh Page</strong> (Use Chrome's refresh button/menu). Do it!</li>
+                    <li>After refresh, if prompted, click button again (e.g., "Connect Stage 2"). Select <code>MCUBOOT</code> if pop-up appears.</li>
+                    <li>Status message will say when to <strong>Refresh Page AGAIN</strong>. Do it!</li>
+                    <li>After final refresh, if prompted, click button again (e.g., "Connect to Flash"). Flashing starts automatically!</li>
+                  </ol>
+                   <p><strong>Success?</strong> Watch the progress log. "Pupdate Complete!" means it worked! Critter reboots automatically.</p>
+                </section>
+
             </div> </div> </div> <footer class="container">
       <p>
-        <a href="https://ucritter.com">← Back to μCritter.com</a> |
         <a href="https://docs.ucritter.com">Critter Docs & Guides</a>
       </p>
       <p><small>Keep your Critter happy with the latest firmware!</small></p>
