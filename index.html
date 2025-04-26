@@ -32,7 +32,7 @@
     <div class="container">
 
         <div id="readFirstWarning" class="note-box read-first-warning">
-             <p><strong>Hold Your Critters!</strong> 🐴 Before clicking Flash, please read *all* instructions for your OS below (use buttons to switch). Important info (drivers, OTG, refresh steps!) ensures a smooth pupdate.</p>
+             <p><strong>Hold Your Critters!</strong> 🐴 Before clicking Flash, please read *all* instructions for your system below (use the buttons!). Important steps ensure a smooth pupdate for your pal.</p>
         </div>
 
         <div class="layout-wrapper">
@@ -40,7 +40,7 @@
             <div class="column flash-column">
                 <section id="flashSection" class="card">
                     <h2>Flash Your Critter</h2>
-                    <p style="text-align: center;">Connect μCritter in DFU mode (Step 1) & follow prompts!</p>
+                    <p style="text-align: center;">Get your Critter into DFU mode (Step 1 below!) & follow the prompts here!</p>
                     <p style="text-align: center;">
                         <button id="connect" disabled>Loading Firmware...</button>
                         <span id="status" class="status status-info">Initializing...</span>
@@ -58,7 +58,7 @@
                     <div id="usbInfo" style="display: none;"></div>
 
                     <fieldset>
-                        <legend>Update Progress</legend>
+                        <legend>Pupdate Progress</legend>
                         <div id="dfuseFields" hidden>
                             <label> DfuSe Start Address: <input type="text" id="dfuseStartAddress" size="10" pattern="0x[A-Fa-f0-9]+" placeholder="e.g., 0x08000000"/> </label>
                             <label> DfuSe Upload Size: <input type="number" id="dfuseUploadSize" min="1" placeholder="Bytes" /> </label>
@@ -74,150 +74,161 @@
                         <button class="os-btn" data-os="mac">macOS</button>
                         <button class="os-btn" data-os="win">Windows</button>
                         <button class="os-btn" data-os="linux">Linux</button>
-                        <button class="os-btn" data-os="android">Android</button> </div>
+                        <button class="os-btn" data-os="android">Android</button>
+                    </div>
                 </div>
 
                 <section id="intro-instructions" class="instructions card">
-                    <h2>Step 1: Enter DFU Mode</h2>
+                    <h2>Step 1: Get Your Critter Ready! (Enter DFU Mode)</h2>
                     <div class="note-box" id="dfu-methods-intro">
-                        <p><strong>Important:</strong> Your μCritter must be in "Device Firmware Update" (DFU) mode. Use <strong>ONE</strong> method below. Success = <strong>DFU Bootloader</strong> screen.</p>
+                        <p><strong>Super Important!</strong> Your μCritter needs to be in its special "Device Firmware Update" (DFU) mode. Pick <strong>ONE</strong> way to get there. You'll know it worked when you see the <strong>DFU Bootloader</strong> screen!</p>
                     </div>
                     <ul>
-                        <li><strong>Paperclip Poke:</strong> Gently press reset hole (above speaker) with paperclip while holding <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>. Release paperclip first, then buttons.</li>
-                        <li><strong>Sleepy Wake-up:</strong> Wake sleeping Critter by pressing any button WHILE holding <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>.</li>
-                        <li><strong>Menu Nap:</strong> Go to <code>Power</code> → <code>Sleep</code>. Let it sleep, then use "Sleepy Wake-up" method.</li>
+                        <li><strong>Paperclip Poke:</strong> Hold down <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>. While holding, gently press the reset button (in the little hole above the speaker) with a paperclip. Release the paperclip first, *then* the buttons.</li>
+                        <li><strong>Sleepy Wake-up:</strong> Is your Critter napping? Hold <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>, then press any other button to wake it directly into DFU mode!</li>
+                        <li><strong>Menu Method:</strong> From the Critter's menu, go to <code>Power</code> → <code>Sleep</code>. Let it snooze, then use the "Sleepy Wake-up" method above.</li>
                     </ul>
-                    <p><strong>Once DFU screen shows, connect μCritter via USB.</strong> Ready for Step 2!</p>
+                    <p><strong>DFU screen showing? Awesome!</strong> Now plug your Critter into your computer/phone with its USB cable. On to Step 2!</p>
                      <div class="note-box">
-                         <p><em>Why the refreshes?</em> μCritter uses a safe two-stage bootloader (MCUBOOT). Your browser needs to connect to both stages, sometimes requiring page refreshes. Follow the prompts next to the Flash button carefully!</p>
+                         <p><strong>Why the refreshes later?</strong> Your Critter uses a super-safe two-stage update process (called MCUBOOT). Your browser talks to both stages, and sometimes needs a page refresh to switch between them. Just follow the messages next to the big Flash button!</p>
                      </div>
                 </section>
 
                 <section class="instructions card" data-ins="mac" hidden>
-                  <h2>Step 2: macOS Flashing Dance</h2>
-                  <p>Mac users, follow the prompts next to the Flash button. It involves a connect-refresh-connect sequence.</p>
+                  <h2>Step 2: macOS Pupdate Dance!</h2>
+                  <p>Mac pals, just follow the messages next to the Flash button over there 👈. It's a simple connect-refresh-connect routine!</p>
                   <ol>
-                    <li>Ensure Critter is connected via USB & shows DFU Bootloader screen (Step 1).</li>
-                    <li>Click the <strong>Flash Button</strong> in the other column (text may vary).</li>
-                    <li>If browser pop-up appears, select <code>MCUBOOT</code>, click <strong>Connect</strong>.
-                       <div class="note-box"><strong>Heads Up!</strong> Seeing <code>CAT PROTOTYPE</code>? Not in DFU mode! Redo Step 1.</div>
+                    <li>Make sure your Critter is plugged in and showing the **DFU Bootloader** screen (from Step 1!).</li>
+                    <li>Click the big <strong>Flash My Critter!</strong> button. (The text might change as you go!)</li>
+                    <li>A browser pop-up will ask for permission. Select <code>MCUBOOT</code> and click <strong>Connect</strong>.
+                       <div class="note-box">🐾 Seeing <code>CAT PROTOTYPE</code>? Whoops! Your Critter isn't in DFU mode. Go back to Step 1 and try again!</div>
                     </li>
-                    <li>Status message will say when to <strong>Refresh Page</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>). Do it!</li>
-                    <li>After refresh, if prompted, click button again (e.g., "Connect Stage 2"). Select <code>MCUBOOT</code> if pop-up appears.</li>
-                    <li>Status message will say when to <strong>Refresh Page AGAIN</strong> (<kbd>⌘</kbd>+<kbd>R</kbd>). Do it!</li>
-                    <li>After final refresh, if prompted, click button again (e.g., "Connect to Flash"). Flashing starts automatically!</li>
+                    <li>The status message will tell you when it's time to <strong>REFRESH PAGE</strong>. Do it! (<kbd>⌘</kbd>+<kbd>R</kbd>)</li>
+                    <li>After refreshing, the page might ask you to click the button again (like "Connect Stage 2"). If the pop-up appears, choose <code>MCUBOOT</code> again.</li>
+                    <li>The status will again say <strong>REFRESH PAGE AGAIN</strong>. You got this! (<kbd>⌘</kbd>+<kbd>R</kbd>)</li>
+                    <li>One last time! After the final refresh, click the button if needed ("Connect to Flash" perhaps?). The Pupdate should start automatically!</li>
                   </ol>
-                   <p><strong>Success?</strong> Watch the progress log. "Pupdate Complete!" means it worked! Critter reboots automatically.</p>
+                   <p><strong>Did it work?</strong> 🎉 Keep an eye on the progress log. "Pupdate Complete!" means success! Your Critter will restart with its new tricks.</p>
                 </section>
 
                 <section class="instructions card" data-ins="win" hidden>
-                  <h2>Step 2: Windows Driver & Flashing</h2>
-                  <p>Windows requires a **mandatory** one-time driver setup with Zadig for **both** DFU stages. Then follow the page prompts.</p>
-                  <h3>A. Install WinUSB Driver (Do TWICE!)</h3>
+                  <h2>Step 2: Windows Pupdate Prep! (Drivers Needed!)</h2>
+                  <p>Howdy, Windows user! We need to teach Windows how to talk to your Critter in *both* its DFU stages. This involves a **one-time driver setup** using a tool called Zadig. Please follow carefully!</p>
+                  <h3>A. Zadig Driver Setup (Do This TWICE!)</h3>
                   <ol>
-                      <li><strong>Get Zadig:</strong> Download latest from <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">zadig.akeo.ie</a>.</li>
-                      <li><strong>Critter in DFU (Stage 1):</strong> Ensure Critter shows DFU screen (Step 1) & is connected via USB.</li>
-                      <li><strong>Run Zadig (Admin):</strong> Right-click Zadig → "Run as administrator".</li>
-                      <li><strong>List All Devices:</strong> In Zadig: `Options` menu → Check `List All Devices`.</li>
-                      <li><strong>Install for Stage 1 (MCUBOOT 2FE3:0100):</strong>
-                          <ul><li>Find & select <code>MCUBOOT</code> (USB ID <code>2FE3:0100</code>) in dropdown.</li><li>Ensure driver box shows <code>WinUSB</code>.</li><li>Click large "Replace Driver" / "Install Driver" button. Confirm prompts.</li><li>Close Zadig.</li></ul>
-                           <div class="note-box"><strong>Heads Up!</strong> Seeing <code>CAT PROTOTYPE</code>? Not in DFU mode! Redo Step 1 before Zadig.</div>
-                      </li>
-                      <li><strong>Start Web Flash (Stage 1 Connect):</strong> Click Flash Button here. Select `MCUBOOT` in browser pop-up → Connect.</li>
-                       <li><strong>Wait for Stage 2 Device:</strong> Page status shows switching. Windows detects new device stage. **WAIT 5-10 seconds.** **DO NOT REFRESH YET!**</li>
-                       <li><strong>Install for Stage 2 (MCUBOOT 2FE3:FFFF or 0100):</strong>
-                           <ul><li>Re-open Zadig (Admin). `Options` → `List All Devices`.</li><li>Find *new* <code>MCUBOOT</code> (USB ID often <code>2FE3:FFFF</code>, sometimes stays <code>2FE3:0100</code>). Select it.</li><li>Ensure <code>WinUSB</code> selected. Click Replace/Install Driver.</li><li>Close Zadig.</li></ul>
-                       </li>
-                       <li><strong>HARDWARE & BROWSER RESTART (CRITICAL):</strong>
+                      <li><strong>Fetch Zadig:</strong> Download the latest version from <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">zadig.akeo.ie</a>.</li>
+                      <li><strong>Critter Ready?</strong> Make sure your Critter shows the **DFU Bootloader** screen (Step 1!) and is plugged into your PC.</li>
+                      <li><strong>Run Zadig as Admin:</strong> Right-click the Zadig file you downloaded and choose "Run as administrator".</li>
+                      <li><strong>Show All Devices:</strong> In Zadig, go to the `Options` menu and check ✅ `List All Devices`.</li>
+                      <li><strong>Install Driver - Stage 1 (MCUBOOT 2FE3:0100):</strong>
                           <ul>
-                              <li><strong>Unplug</strong> μCritter USB.</li>
-                              <li>Completely <strong>CLOSE</strong> web browser (all windows/tabs).</li>
-                              <li><strong>Re-open</strong> browser, return to this page.</li>
-                              <li><strong>Re-plug</strong> μCritter USB (still in DFU mode!).</li>
+                            <li>Find and select <code>MCUBOOT</code> in the dropdown list (it should have USB ID <code>2FE3</code> / <code>0100</code> next to it).</li>
+                            <li>Make sure the box next to the green arrow says <code>WinUSB</code>.</li>
+                            <li>Click the big "Replace Driver" or "Install Driver" button. Say yes to any prompts.</li>
+                            <li>Close Zadig for now.</li>
+                          </ul>
+                           <div class="note-box">🐾 Seeing <code>CAT PROTOTYPE</code>? Whoops! Your Critter isn't in DFU mode. Go back to Step 1 before using Zadig!</div>
+                      </li>
+                      <li><strong>First Connection:</strong> Click the <strong>Flash My Critter!</strong> button here on the webpage. Choose `MCUBOOT` in the browser pop-up and click Connect.</li>
+                       <li><strong>Wait for Stage 2:</strong> The page status will say it's switching modes. Windows will detect the "new" device stage. **WAIT 5-10 seconds** for Windows to catch up. **DON'T REFRESH THE PAGE YET!**</li>
+                       <li><strong>Install Driver - Stage 2 (MCUBOOT 2FE3:FFFF):</strong>
+                           <ul>
+                            <li>Open Zadig again (as Administrator!). Go to `Options` -> `List All Devices` again.</li>
+                            <li>Find <code>MCUBOOT</code> again. This time, the USB ID might be <code>2FE3</code> / <code>FFFF</code> (or sometimes it stays <code>0100</code>). Select it.</li>
+                            <li>Make sure <code>WinUSB</code> is selected. Click Replace/Install Driver.</li>
+                            <li>Close Zadig. You're done with it!</li>
+                           </ul>
+                       </li>
+                       <li><strong>‼️ Hardware & Browser Restart (VERY IMPORTANT!) ‼️</strong>
+                          <ul>
+                              <li>Physically **unplug** the μCritter's USB cable from your PC.</li>
+                              <li>Completely **CLOSE your web browser** (all windows and tabs).</li>
+                              <li>**Re-open** the browser and come back to this page.</li>
+                              <li>**Plug the μCritter back in** (it should still be in DFU mode!).</li>
                           </ul>
                        </li>
-                       <li><strong>Follow On-Screen Prompts:</strong> Page reloads. Follow status messages next to Flash button (may prompt Refresh again or Connect Stage 2).</li>
+                       <li><strong>Almost There!</strong> Now, just follow the status messages next to the Flash button. It might ask you to refresh or connect again.</li>
                   </ol>
-                  <h3>B. Windows Flashing Dance (After Zadig & Restarts)</h3>
-                   <p>With drivers set up, continue following prompts:</p>
-                   <ol start="11"> <li>If prompted, click button (e.g., "Connect Stage 2"), select <code>MCUBOOT</code> if needed.</li>
-                     <li>Status message says when to <strong>Refresh Page AGAIN</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> / F5). Do it!</li>
-                     <li>After final refresh, if prompted, click button (e.g., "Connect to Flash"). Flashing starts!</li>
+                  <h3>B. Windows Pupdate Dance! (After Zadig & Restarts)</h3>
+                   <p>Phew! Driver hurdles cleared! Let's finish the Pupdate:</p>
+                   <ol start="11"> <li>If prompted, click the button ("Connect Stage 2"?), select <code>MCUBOOT</code> if the pop-up appears.</li>
+                     <li>Status message says <strong>REFRESH PAGE AGAIN</strong>? Hit <kbd>Ctrl</kbd>+<kbd>R</kbd> or F5!</li>
+                     <li>After the final refresh, click the button if needed ("Connect to Flash"?). The Pupdate starts now!</li>
                    </ol>
-                   <p>Watch progress log. "Pupdate Complete!" = Success! Critter reboots.</p>
+                   <p>Watch the progress log. "Pupdate Complete!" = Success! 🎉 Your Critter will reboot automatically.</p>
                 </section>
 
                 <section class="instructions card" data-ins="linux" hidden>
-                  <h2>Step 2: Linux Permissions & Flashing</h2>
-                  <p>Linux needs a one-time `udev` rule for access. Then follow page prompts.</p>
-                  <h3>A. Create udev Rule (One Time)</h3>
+                  <h2>Step 2: Linux Pupdate Prep! (Permissions Time!)</h2>
+                  <p>Hey Linux friend! We need to give your browser permission to chat with the Critter. This is a quick, one-time setup using a `udev` rule.</p>
+                  <h3>A. Create udev Rule (One Time Only)</h3>
                   <ol>
-                    <li><strong>Open Terminal.</strong></li>
-                    <li><strong>Create/Edit Rules File:</strong> <code>sudo nano /etc/udev/rules.d/51-mcuboot.rules</code></li>
-                    <li><strong>Paste Lines:</strong> Add these two lines exactly:
+                    <li><strong>Open your Terminal.</strong></li>
+                    <li><strong>Create/Edit the Rules File:</strong> Type or paste: <br/><code>sudo nano /etc/udev/rules.d/51-mcuboot.rules</code></li>
+                    <li><strong>Paste These Lines:</strong> Copy the two lines below exactly and paste them into the nano editor:
                       <pre><code class="language-text">SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"</code></pre>
-                      <div class="note-box"><p><small><strong>User Group:</strong> Most systems add users to `plugdev`. Check with <code>groups $USER</code>. If missing, run <code>sudo usermod -aG plugdev $USER</code>, then **log out & back in**.</small></p></div>
+                      <div class="note-box">
+                        <p><small><strong>User Group Check:</strong> Most Linux systems use the `plugdev` group for USB access. Check if you're in it by typing <code>groups $USER</code> in the terminal. If you don't see `plugdev`, add yourself with <code>sudo usermod -aG plugdev $USER</code>, then **log out and log back in** for it to take effect!</small></p>
+                      </div>
                     </li>
-                    <li><strong>Save & Exit Nano:</strong> <kbd>Ctrl</kbd>+<kbd>X</kbd> → <kbd>Y</kbd> → <kbd>Enter</kbd>.</li>
-                    <li><strong>Reload Rules:</strong> <code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>
-                    <li><strong>(Optional) One-Liner:</strong> Creates file, adds user (if needed), reloads. Run then log out/in if group was added.
-                      <pre><code class="language-text" style="font-size: 1.1rem;">echo -e 'SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"\nSUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"' | sudo tee /etc/udev/rules.d/51-mcuboot.rules > /dev/null && sudo usermod -aG plugdev $USER && sudo udevadm control --reload-rules && sudo udevadm trigger && echo "Rule created/updated. Log out/in if you weren't in plugdev group."</code></pre>
-                    </li>
-                    <li><strong>Re-plug Critter:</strong> Unplug/replug USB (ensure still in DFU mode).</li>
+                    <li><strong>Save & Exit Nano:</strong> Press <kbd>Ctrl</kbd>+<kbd>X</kbd>, then press <kbd>Y</kbd> to confirm saving, then press <kbd>Enter</kbd>.</li>
+                    <li><strong>Reload Rules:</strong> Back in the terminal, run: <br/><code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>
+                    <li><strong>Re-plug Your Critter:</strong> Unplug the Critter's USB cable and plug it back in (make sure it's still showing the **DFU Bootloader** screen from Step 1!).</li>
                   </ol>
-                  <h3>B. Linux Flashing Dance</h3>
-                  <p>With rules applied, follow prompts next to Flash button:</p>
-                   <ol start="8"> <li>Critter connected in DFU mode? Rules applied? Good.</li>
-                    <li>Click <strong>Flash Button</strong> in other column.</li>
-                    <li>If browser pop-up appears, select <code>MCUBOOT</code>, click <strong>Connect</strong>.
-                       <div class="note-box"><strong>Heads Up!</strong> Seeing <code>CAT PROTOTYPE</code>? Not in DFU mode! Redo Step 1.</div>
+                  <h3>B. Linux Pupdate Dance!</h3>
+                  <p>Permissions granted! Now, follow the prompts next to the Flash button:</p>
+                   <ol start="7"> <li>Critter connected (DFU mode) and rules applied? Great!</li>
+                    <li>Click the big <strong>Flash My Critter!</strong> button.</li>
+                    <li>If a browser pop-up asks, choose <code>MCUBOOT</code> and click <strong>Connect</strong>.
+                       <div class="note-box">🐾 Seeing <code>CAT PROTOTYPE</code>? Whoops! Your Critter isn't in DFU mode. Go back to Step 1 and try again!</div>
                     </li>
-                    <li>Status message says when to <strong>Refresh Page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> / F5). Do it!</li>
-                    <li>After refresh, if prompted, click button again (e.g., "Connect Stage 2"). Select <code>MCUBOOT</code> if pop-up appears.</li>
-                    <li>Status message says when to <strong>Refresh Page AGAIN</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> / F5). Do it!</li>
-                    <li>After final refresh, if prompted, click button again (e.g., "Connect to Flash"). Flashing starts!</li>
+                    <li>The status message will say <strong>REFRESH PAGE</strong>. Do it! (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5)</li>
+                    <li>After refreshing, click the button again if prompted ("Connect Stage 2"?). Select <code>MCUBOOT</code> if the pop-up shows.</li>
+                    <li>Status asks you to <strong>REFRESH PAGE AGAIN</strong>? Go for it! (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5)</li>
+                    <li>Last step! Click the button if needed ("Connect to Flash"?). The Pupdate begins!</li>
                   </ol>
-                   <p>Watch progress log. "Pupdate Complete!" = Success! Critter reboots.</p>
+                   <p>Watch the progress log. "Pupdate Complete!" = Success! 🎉 Your Critter will reboot with new smarts.</p>
                 </section>
 
                 <section class="instructions card" data-ins="android" hidden>
-                  <h2>Step 2: Android Prep & Flashing</h2>
-                  <p>Android needs the right browser, connection, and maybe a setting toggle.</p>
-                  <div class="note-box"><strong>Browser Requirement:</strong> You MUST use <strong>Google Chrome</strong> on Android for WebUSB to work. Other browsers likely won't function.</div>
-                  <h3>A. Connect & Check OTG</h3>
+                  <h2>Step 2: Android Pupdate Prep!</h2>
+                  <p>Hey Android adventurer! Let's get your phone ready to give your Critter its Pupdate.</p>
+                  <div class="note-box"><strong>Browser Needed:</strong> Use <strong>Google Chrome</strong> on your Android phone! WebUSB usually only works reliably in Chrome.</div>
+                  <h3>A. Get Connected & Check OTG</h3>
                   <ol>
-                    <li>Ensure Critter shows DFU Bootloader screen (Step 1).</li>
-                    <li><strong>Connect Critter to Phone:</strong>
+                    <li>Make sure your Critter is showing the **DFU Bootloader** screen (from Step 1!).</li>
+                    <li><strong>Plug Critter into Phone:</strong> You'll need either:
                         <ul>
-                            <li>Use a **USB-C to USB-C cable**.</li>
-                            <li>*OR* use a **USB OTG adapter** (USB-C male to USB-A female) plugged into your phone, then connect the Critter's standard USB cable to the adapter.</li>
+                            <li>A **USB-C to USB-C cable**.</li>
+                            <li>*OR* a **USB OTG adapter** (USB-C for your phone, USB-A for the Critter's cable) + the Critter's normal USB cable.</li>
                         </ul>
                     </li>
-                    <li><strong>Check for OTG Setting (If Needed):</strong>
+                    <li><strong>Enable OTG (If Necessary):</strong>
                         <ul>
-                            <li>Many phones enable OTG automatically.</li>
-                            <li>If the Critter isn't detected later, check your phone's settings for "OTG", often under "Connected Devices", "Connectivity", or "Advanced". Enable it if found.</li>
-                            <li>You can also use a "USB OTG Checker" app from the Play Store to verify your phone's support beforehand.</li>
+                            <li>Many phones turn OTG on automatically!</li>
+                            <li>If things don't work later, look in your phone's **Settings** for "OTG" (sometimes under "Connected Devices" or similar) and flip the switch **ON**.</li>
+                            <li>Not sure if your phone supports OTG? Search the Play Store for a "USB OTG Checker" app to find out.</li>
                         </ul>
                     </li>
                   </ol>
-                  <h3>B. Android Flashing Dance</h3>
-                   <p>With Critter connected (in DFU) and OTG potentially enabled, follow the prompts next to the Flash button in Chrome:</p>
-                  <ol start="4"> <li>Click the <strong>Flash Button</strong> in the other column (text may vary).</li>
-                    <li>If browser pop-up appears, select <code>MCUBOOT</code>, click <strong>Connect</strong>.
-                       <div class="note-box"><strong>Heads Up!</strong> Seeing <code>CAT PROTOTYPE</code>? Not in DFU mode! Redo Step 1.</div>
+                  <h3>B. Android Pupdate Dance!</h3>
+                   <p>Ready? Using Chrome, follow the messages next to the Flash button over there 👈:</p>
+                  <ol start="4"> <li>Click the big <strong>Flash My Critter!</strong> button.</li>
+                    <li>Chrome will pop up asking for permission. Choose <code>MCUBOOT</code> and tap <strong>Connect</strong>.
+                       <div class="note-box">🐾 Seeing <code>CAT PROTOTYPE</code>? Whoops! Your Critter isn't in DFU mode. Go back to Step 1 and try again!</div>
                     </li>
-                    <li>Status message will say when to <strong>Refresh Page</strong> (Use Chrome's refresh button/menu). Do it!</li>
-                    <li>After refresh, if prompted, click button again (e.g., "Connect Stage 2"). Select <code>MCUBOOT</code> if pop-up appears.</li>
-                    <li>Status message will say when to <strong>Refresh Page AGAIN</strong>. Do it!</li>
-                    <li>After final refresh, if prompted, click button again (e.g., "Connect to Flash"). Flashing starts automatically!</li>
+                    <li>The status message will say <strong>REFRESH PAGE</strong>. In Chrome on Android, you can usually do this by **pulling down from the top of the screen** until you see the refresh icon 🔄.</li>
+                    <li>After refreshing, tap the button again if needed ("Connect Stage 2"?). Select <code>MCUBOOT</code> if the pop-up appears.</li>
+                    <li>Status asks to <strong>REFRESH PAGE AGAIN</strong>? You know the drill! (Pull down to refresh!)</li>
+                    <li>One last time! Tap the button if needed ("Connect to Flash"?). The Pupdate should start automatically!</li>
                   </ol>
-                   <p><strong>Success?</strong> Watch the progress log. "Pupdate Complete!" means it worked! Critter reboots automatically.</p>
+                   <p><strong>Did it work?</strong> 🎉 Keep an eye on the progress log. "Pupdate Complete!" means your Critter is ready to reboot and show off!</p>
                 </section>
 
             </div> </div> </div> <footer class="container">
       <p>
+        <a href="https://ucritter.com">← Back to μCritter.com</a> |
         <a href="https://docs.ucritter.com">Critter Docs & Guides</a>
       </p>
       <p><small>Keep your Critter happy with the latest firmware!</small></p>
