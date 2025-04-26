@@ -1,0 +1,516 @@
+/* Define CSS variables for theming */
+:root {
+    --ucritter-primary: #ff7e3f;  /* Vibrant Orange */
+    --ucritter-accent:  #ffb15e;  /* Light Orange Accent */
+    --ucritter-bg:      #fdfcfb;  /* Slightly off-white bg */
+    --ucritter-text:    #4a4a4a;  /* Dark grey text */
+    --ucritter-light-text: #686868; /* Lighter grey */
+    --ucritter-border:  #ececec;  /* Light border */
+    --ucritter-card-bg: #ffffff;  /* White card background */
+    --ucritter-code-bg: #f0f0f0;  /* Code background */
+    --ucritter-error:   #d32f2f;  /* Error red */
+    --ucritter-success: #388e3c;  /* Success green */
+    --ucritter-warning-bg: #fff8e6; /* Warning/Note background */
+    --ucritter-warning-border: var(--ucritter-accent);
+    --font-family: 'Nunito', system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; /* Primary font */
+    --sticky-top-offset: 2rem; /* Offset for sticky column */
+  }
+  
+  /* ---------- Base & Layout ---------- */
+  html {
+    font-size: 62.5%; /* Base font size: 1rem = 10px */
+    box-sizing: border-box; /* Include padding and border in element's total width and height */
+  }
+  *, *:before, *:after {
+    box-sizing: inherit; /* Inherit box-sizing for all elements */
+  }
+  
+  body {
+    background: var(--ucritter-bg);
+    color: var(--ucritter-text);
+    font-family: var(--font-family);
+    font-size: 1.6rem; /* Default font size (16px) */
+    line-height: 1.6;
+    max-width: none; /* Allow body to take full width */
+    width: auto;
+    margin: 0;
+    padding: 0 0 3rem; /* Padding at the bottom */
+  }
+  
+  /* Centering container for major content blocks */
+  .container {
+      max-width: 120rem; /* Wider max-width for desktop */
+      width: 95%;     /* Use percentage width for responsiveness */
+      margin: 0 auto; /* Center the container */
+      padding: 0 1rem; /* Padding inside container */
+  }
+  
+  /* Link styling */
+  a { color: var(--ucritter-primary); text-decoration: none; font-weight: 700; }
+  a:hover { text-decoration: underline; }
+  
+  /* Heading styling */
+  h1, h2, h3, h4 { font-weight: 700; color: var(--ucritter-text); line-height: 1.2; }
+  h1 { font-size: 3.2rem; margin-bottom: 0.5rem; color: var(--ucritter-primary); }
+  h2 { font-size: 2.4rem; margin-top: 3rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--ucritter-border); padding-bottom: 0.5rem;}
+  h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucritter-primary); }
+  
+  /* ---------- Hero Section ---------- */
+  .hero {
+    text-align: center;
+    padding: 3rem 1rem 3rem;
+    background-color: var(--ucritter-card-bg);
+    border-bottom: 1px solid var(--ucritter-border);
+    margin-bottom: 2rem;
+  }
+  .hero .tagline {
+    font-size: 1.8rem;
+    color: var(--ucritter-light-text);
+    max-width: 60ch; /* Limit line length for readability */
+    margin: 0 auto;
+  }
+  
+  /* ---------- Pink Warning Box (Moved Above Columns) ---------- */
+  #readFirstWarning {
+      background-color: #ffebee; /* Light red background */
+      border: 1px solid #f1b0b7; /* Add full border */
+      border-left: 4px solid var(--ucritter-error); /* Keep prominent left border */
+      color: #c62828; /* Darker red text */
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      margin-bottom: 2.5rem; /* Space below the warning */
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  #readFirstWarning strong { color: var(--ucritter-error); }
+  #readFirstWarning p::before {
+      content: "⚠️ "; /* Add warning emoji */
+      margin-right: 0.5rem;
+  }
+  /* Ensure the p tag inside has reasonable margin */
+  #readFirstWarning p {
+      margin: 0;
+  }
+  
+  
+  /* ---------- Two Column Layout ---------- */
+  .layout-wrapper {
+    display: flex;
+    flex-wrap: wrap; /* Allow columns to wrap on smaller screens */
+    gap: 2.5rem;     /* Space between columns */
+    align-items: flex-start; /* Align items to the top */
+    /* margin-top: 2rem; Removed, spacing handled by warning box margin */
+  }
+  
+  .column {
+    flex: 1; /* Allow columns to grow and shrink */
+    min-width: 320px; /* Minimum width before wrapping */
+  }
+  
+  /* Sticky Flasher Column */
+  .flash-column {
+    position: sticky; /* Make the column sticky */
+    top: var(--sticky-top-offset); /* Stick below the desired offset */
+    align-self: start; /* Ensure it aligns to the top for sticky to work correctly */
+    /* Height is determined by content, but it will stick */
+  }
+  
+  /* Scrollable Instructions Column */
+  .instructions-column {
+     /* Make this column scrollable if content exceeds viewport height minus offset */
+     max-height: calc(100vh - var(--sticky-top-offset) - 4rem); /* Adjust 4rem for margins/padding */
+     overflow-y: auto; /* Add scrollbar only when needed */
+     /* Add padding for scrollbar visibility */
+     padding-right: 1rem;
+     /* Minor adjustment for scrollbar width */
+     margin-right: -1rem;
+  }
+  /* Style scrollbar for Webkit browsers (Chrome, Safari) */
+  .instructions-column::-webkit-scrollbar {
+    width: 8px; /* Width of the scrollbar */
+  }
+  .instructions-column::-webkit-scrollbar-track {
+    background: var(--ucritter-bg); /* Background of the track */
+    border-radius: 4px;
+  }
+  .instructions-column::-webkit-scrollbar-thumb {
+    background-color: var(--ucritter-accent); /* Color of the scroll thumb */
+    border-radius: 4px; /* Roundness of the scroll thumb */
+    border: 2px solid var(--ucritter-bg); /* Creates padding around thumb */
+  }
+   /* Style scrollbar for Firefox */
+  .instructions-column {
+    scrollbar-width: thin; /* "auto" or "thin" */
+    scrollbar-color: var(--ucritter-accent) var(--ucritter-bg); /* thumb color track color */
+  }
+  
+  
+  /* ---------- Card Style for Sections ---------- */
+  .card {
+    background: var(--ucritter-card-bg);
+    border: 1px solid var(--ucritter-border);
+    border-radius: 12px; /* More rounded corners */
+    padding: 2.5rem 2rem;
+    margin-bottom: 2.5rem; /* Default bottom margin for cards */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05); /* Subtle shadow */
+  }
+  /* Default card heading style */
+  .card h2 {
+    margin-top: 0;
+    border: none;
+    padding-bottom: 0;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+  
+  /* Remove bottom margin from the last direct child element within a column */
+  /* This prevents double spacing caused by the 'gap' in layout-wrapper */
+  .column > *:last-child {
+     margin-bottom: 0;
+  }
+  
+  /* ---------- Flash UI (Card in Left Column) ---------- */
+  #flashSection {
+      /* Specific styles for the flash section if needed */
+      margin-top: 0; /* Ensure no extra top margin */
+  }
+  #flashSection h2 { text-align: center; } /* Keep flash title centered */
+  
+  /* Connect Button */
+  button#connect {
+    background: var(--ucritter-primary);
+    border: none;
+    padding: 1.2rem 2.4rem;
+    border-radius: 8px;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    display: inline-block;
+    margin-top: 1rem;
+    width: auto; /* Default width */
+  }
+  button#connect:hover { background-color: #e66a2f; transform: translateY(-1px); }
+  button#connect:active { transform: translateY(0px); }
+  button#connect:disabled { background-color: #ffb15e; opacity: 0.7; cursor: not-allowed; transform: none; }
+  
+  /* Status Display */
+   #status {
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 1.5rem;
+      font-weight: 700;
+      padding: 0.8rem 1.2rem;
+      border-radius: 6px;
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+      font-size: 1.4rem;
+      min-height: 2.4rem; /* Ensure consistent height */
+      line-height: 1.7; /* Ensure text fits */
+      border: 1px solid transparent; /* Base border for alignment */
+      text-align: left; /* Default alignment */
+  }
+  /* Status visual states */
+  #status.status-info { background-color: #eef1f5; color: #334; border-color: #d8dde4; }
+  #status.status-prompt { background-color: var(--ucritter-warning-bg); color: #856404; border-color: var(--ucritter-warning-border); }
+  #status.status-error { background-color: #ffebee; color: var(--ucritter-error); border-color: #f1b0b7; }
+  #status.status-success { background-color: #e8f5e9; color: var(--ucritter-success); border-color: #a5d6a7; }
+  
+  /* USB Info Box */
+  #usbInfo {
+    white-space: pre-wrap; /* Preserve whitespace */
+    font-size: 1.3rem;
+    margin-top: 1.5rem;
+    background: var(--ucritter-code-bg);
+    padding: 1rem;
+    border-radius: 6px;
+    color: var(--ucritter-light-text);
+  }
+  
+  /* Fieldset for progress */
+  fieldset {
+    border: 1px solid var(--ucritter-border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+  }
+  legend {
+    font-weight: 700;
+    color: var(--ucritter-primary);
+    font-size: 1.6rem;
+    padding: 0 0.5rem;
+    margin-left: 0.5rem;
+  }
+  
+  /* Log Area */
+  .log {
+    font-size: 1.4rem;
+    max-height: 180px; /* Limit height and enable scroll */
+    overflow-y: auto;
+    background: var(--ucritter-code-bg);
+    padding: 1rem;
+    border-radius: 6px;
+    margin-top: 1rem;
+    line-height: 1.4;
+  }
+  .log p { margin: 0.4rem 0; }
+  .log p.error { color: var(--ucritter-error); font-weight: 700; }
+  .log p.warning { color: #ffa000; } /* Distinct warning color */
+  .log p.success { color: var(--ucritter-success); font-weight: 700; }
+  .log progress {
+    width: 100%;
+    margin-top: 0.5rem;
+    accent-color: var(--ucritter-primary); /* Style progress bar */
+    height: 1rem; /* Make progress bar thicker */
+    border-radius: 5px;
+    border: 1px solid var(--ucritter-border);
+  }
+  /* Style progress bar appearance for Webkit browsers */
+  .log progress::-webkit-progress-bar {
+      background-color: var(--ucritter-code-bg);
+      border-radius: 5px;
+  }
+  .log progress::-webkit-progress-value {
+      background-color: var(--ucritter-primary);
+      border-radius: 5px;
+      transition: width 0.2s ease;
+  }
+   /* Style progress bar appearance for Firefox */
+  .log progress::-moz-progress-bar {
+      background-color: var(--ucritter-primary);
+      border-radius: 5px;
+      transition: width 0.2s ease;
+  }
+  
+  /* Input fields styling */
+  input[type="text"], input[type="number"] {
+      font-family: var(--font-family);
+      font-size: 1.4rem;
+      padding: 0.8rem 1rem;
+      border: 1px solid var(--ucritter-border);
+      border-radius: 6px;
+      background-color: #fff;
+      margin-left: 0.5rem;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+   input[type="text"]:focus, input[type="number"]:focus {
+       border-color: var(--ucritter-primary);
+       outline: none;
+       box-shadow: 0 0 0 3px rgba(255, 126, 63, 0.2); /* Focus ring */
+   }
+  
+  
+  /* ---------- Instructions Styling (Cards in Right Column) ---------- */
+  .instructions { /* Base styles for instruction cards */ }
+  /* Override default card H2 style for instructions */
+  .instructions h2 {
+    text-align: left;
+    margin-bottom: 1.5rem;
+    border: none;
+    padding: 0;
+  }
+  .instructions h3 { font-size: 1.8rem; margin-top: 2.5rem; }
+  .instructions ol, .instructions ul { padding-left: 2em; margin-bottom: 1.5rem; }
+  .instructions li { margin-bottom: 1em; line-height: 1.7; }
+  .instructions strong { font-weight: 700; color: var(--ucritter-text); }
+  .instructions em { font-style: italic; color: var(--ucritter-light-text); }
+  
+  /* Note/Warning Box Styling */
+  .note-box {
+      background-color: var(--ucritter-warning-bg);
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin: 1.5rem 0;
+      border-left: 4px solid var(--ucritter-warning-border);
+      font-size: 1.5rem;
+      line-height: 1.7;
+  }
+  .note-box p { margin: 0.5rem 0; }
+  .note-box strong { color: var(--ucritter-primary); }
+  .note-box code { background-color: rgba(0,0,0,0.07); }
+  
+  
+  /* ---------- OS toggle Card ---------- */
+  .os-toggle {
+      /* Now a card in the instructions column */
+      text-align: center; /* Center content inside */
+      /* Inherits card padding, border-radius, margin-bottom, shadow */
+  }
+   .os-toggle span {
+     font-weight: 700;
+     margin-right: 1rem;
+     display: block;
+     margin-bottom: 1rem;
+     font-size: 1.6rem;
+   }
+   /* Container for buttons to allow centering */
+   .os-toggle div {
+       display: flex;
+       flex-wrap: wrap;
+       justify-content: center;
+       gap: 1rem;
+   }
+  .os-btn {
+    background: none;
+    border: 2px solid var(--ucritter-accent);
+    color: var(--ucritter-primary);
+    padding: 0.8rem 1.6rem;
+    /* margin: 0.5rem 0.5rem; */ /* Use gap instead */
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+  .os-btn.active,
+  .os-btn:hover { background: var(--ucritter-primary); color: #fff; border-color: var(--ucritter-primary); }
+  
+  /* ---------- Browser Notice (Above Columns) ---------- */
+  #browserNotice {
+    background: #fff3cd; /* Warning yellow */
+    border: 1px solid #ffeeba;
+    color: #856404; /* Dark yellow text */
+    padding: 1.5rem;
+    border-radius: 8px;
+    /* Centered within its container, above the columns */
+    margin: 0 auto 2rem auto;
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 400;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    max-width: 80rem; /* Limit notice width */
+  }
+  #browserNotice p { margin: 0.5rem 0; }
+  #browserNotice strong { font-weight: 700; }
+  #browserNotice .download-btn {
+    display: inline-block;
+    margin-top: 1rem;
+    background: var(--ucritter-primary);
+    color: #fff;
+    padding: 0.8rem 1.6rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 1.4rem;
+    transition: background-color 0.2s ease;
+    font-weight: 700;
+  }
+   #browserNotice .download-btn:hover { background-color: #e66a2f; text-decoration: none;}
+  
+  /* ---------- Inline kbd & code ---------- */
+  kbd {
+    background: #eee;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 0.2em 0.5em;
+    font-size: 0.9em;
+    font-family: monospace;
+    box-shadow: 1px 1px 1px rgba(0,0,0,0.1);
+    color: #333;
+    margin: 0 0.1em;
+    vertical-align: baseline; /* Align better with text */
+  }
+  code {
+      font-family: monospace;
+      background-color: var(--ucritter-code-bg);
+      padding: 0.2em 0.4em;
+      border-radius: 4px;
+      font-size: 0.9em;
+   }
+  pre {
+    background-color: var(--ucritter-code-bg);
+    padding: 1.5em;
+    border-radius: 8px;
+    overflow-x: auto; /* Allow horizontal scroll for long lines */
+    margin: 1em 0;
+  }
+  pre code {
+    background: none; /* No extra background inside pre */
+    padding: 0;
+    font-size: 1.3rem; /* Slightly larger code block font */
+    line-height: 1.5;
+  }
+  
+  /* ---------- Footer ---------- */
+  footer.container { /* Target footer specifically */
+      margin: 4rem auto 0; /* Centered, space above */
+      padding-top: 2rem;
+      border-top: 1px solid var(--ucritter-border);
+      text-align: center;
+      font-size: 1.4rem;
+      color: var(--ucritter-light-text);
+      max-width: 80rem; /* Limit footer width for consistency */
+  }
+   footer p { margin: 0.5rem 0; }
+  
+   /* ---------- Responsiveness ---------- */
+  
+   /* Tablet and Smaller Desktop Breakpoint */
+  @media (max-width: 850px) {
+    .layout-wrapper {
+      flex-direction: column; /* Stack columns vertically */
+      gap: 0; /* Remove gap when stacking */
+    }
+    .column {
+      flex-basis: 100%; /* Make columns full width */
+      min-width: unset; /* Reset min-width */
+      /* Add margin between stacked columns (except the last one) */
+      margin-bottom: 2.5rem;
+    }
+    .column:last-child {
+       margin-bottom: 0; /* No margin after the last stacked column */
+    }
+  
+    /* Reset sticky and scroll behavior when stacked */
+    .flash-column {
+        position: static; /* Remove stickiness */
+        align-self: auto; /* Reset alignment */
+    }
+    .instructions-column {
+        max-height: none; /* Remove height constraint */
+        overflow-y: visible; /* Remove scroll */
+        padding-right: 0; /* Remove scrollbar padding */
+        margin-right: 0;
+    }
+  
+     /* Adjust container width for tablets if needed */
+     .container {
+       max-width: 70rem;
+       width: 92%;
+     }
+  }
+  
+   /* Mobile Breakpoint */
+   @media (max-width: 600px) {
+        /* Further adjustments for phones */
+        .container {
+          width: 95%; /* Slightly more width on small screens */
+        }
+        h1 { font-size: 2.8rem; }
+        h2 { font-size: 2.1rem; }
+  
+        /* Make connect button and status block-level for stacking */
+        #flashSection p[style*="text-align: center"] {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem; /* Space between button and status */
+        }
+        button#connect {
+            width: 100%; /* Make button full width */
+            margin-top: 0; /* Remove top margin */
+        }
+        #status {
+            margin-left: 0; /* Remove left margin */
+            margin-top: 0; /* Remove top margin (using gap now) */
+            display: block; /* Ensure it's block */
+            width: 100%; /* Make status full width */
+            text-align: center; /* Center text in status */
+        }
+        /* Adjust padding on cards for smaller screens */
+        .card {
+            padding: 2rem 1.5rem;
+        }
+        /* Adjust sticky offset for potentially smaller headers on mobile if needed */
+        /* :root { --sticky-top-offset: 1rem; } */
+        /* Adjust scrollable height offset */
+        /* .instructions-column { max-height: calc(100vh - var(--sticky-top-offset) - 2rem); } */
+   }
