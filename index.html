@@ -297,10 +297,8 @@
           const STATE = {
               IDLE: 'idle', CONNECTING_STAGE1: 'connecting_stage1', WAITING_DISCONNECT: 'waiting_disconnect',
               PROMPT_REFRESH_1: 'prompt_refresh_1',
-              // ** NEW STATES **
               PROMPT_CONNECT_STAGE2: 'prompt_connect_stage2', // Ask user to click button for stage 2 permission
               PROMPT_CONNECT_FLASH: 'prompt_connect_flash', // Ask user to click button for final flash permission
-              // ** END NEW STATES **
               CONNECTING_STAGE2: 'connecting_stage2', WAITING_STABLE: 'waiting_stable',
               PROMPT_REFRESH_2: 'prompt_refresh_2', CONNECTING_FLASH: 'connecting_flash',
               FLASHING: 'flashing', FLASH_COMPLETE: 'flash_complete', ERROR: 'error'
@@ -340,7 +338,6 @@
           function loadState() {
               const savedState = sessionStorage.getItem(stateKey);
               serial = sessionStorage.getItem(serialKey) || '';
-              // Restore active states, otherwise reset
               if (savedState && savedState !== STATE.IDLE && savedState !== STATE.FLASH_COMPLETE && Object.values(STATE).includes(savedState)) {
                  currentState = savedState;
                  console.log("State loaded:", currentState, "Serial:", serial);
@@ -376,7 +373,7 @@
           function updateUI() {
               console.log("Updating UI for state:", currentState);
               if (!connectButton) connectButton = document.getElementById("connect");
-              if (!connectButton) return;
+              if (!connectButton) { console.error("Connect button lost!"); return; }
 
               let buttonDisabled = false;
               let buttonText = "Flash My Critter!";
@@ -401,25 +398,23 @@
                       if (dfuUtil) dfuUtil.logInfo("Attempting detach...");
                       break;
                    case STATE.PROMPT_REFRESH_1:
-                      updateStatus("Stage 1 Done! Please REFRESH PAGE NOW (Ctrl+R / Cmd+R).", "prompt");
+                      updateStatus("Stage 1 Done! Please REFRESH PAGE NOW (Ctrl+R or Cmd+R).", "prompt");
                       buttonText = "REFRESH PAGE";
                       buttonDisabled = true;
                       if (dfuUtil) dfuUtil.logSuccess("Ready for first refresh.");
                       break;
-                   // *** NEW STATES UI ***
                    case STATE.PROMPT_CONNECT_STAGE2:
                        updateStatus("Permission needed for Stage 2.", "prompt");
                        buttonText = "Connect Stage 2";
-                       buttonDisabled = false; // Enable button for user click
+                       buttonDisabled = false;
                        if (dfuUtil) dfuUtil.logWarning("Browser needs permission for Stage 2. Click 'Connect Stage 2'.");
                        break;
                    case STATE.PROMPT_CONNECT_FLASH:
                        updateStatus("Permission needed for Flash.", "prompt");
                        buttonText = "Connect to Flash";
-                       buttonDisabled = false; // Enable button for user click
+                       buttonDisabled = false;
                        if (dfuUtil) dfuUtil.logWarning("Browser needs final permission. Click 'Connect to Flash'.");
                        break;
-                   // *** END NEW STATES UI ***
                    case STATE.WAITING_STABLE:
                         updateStatus("Stage 2 Connected. Stabilizing...", "info");
                         buttonText = "Wait...";
@@ -460,7 +455,6 @@
           function handleError(errorMsg, userMsg = "An error occurred.") {
               console.error(errorMsg);
               const messageToLog = (errorMsg instanceof Error) ? errorMsg.message : String(errorMsg);
-              // Avoid logging the user gesture error to the user log area unless debugging
               if (!(errorMsg instanceof NeedsUserGestureError)) {
                    if (dfuUtil) dfuUtil.logError(messageToLog);
               }
@@ -470,7 +464,6 @@
 
 
           // --- Connection and Flashing Logic ---
-          // Added allowRequestPrompt parameter
           async function attemptConnection(attemptVid, attemptSerial, allowRequestPrompt = false) {
                 connectAttempts++;
                 if (connectAttempts > MAX_CONNECT_ATTEMPTS) {
@@ -481,9 +474,8 @@
                 let filters = [];
                  if (attemptSerial) { filters.push({ serialNumber: attemptSerial }); }
                  else if (attemptVid) { filters.push({ vendorId: attemptVid }); }
-                 else { filters.push({ vendorId: 0x2FE3 }); } // Fallback
+                 else { filters.push({ vendorId: 0x2FE3 }); }
 
-                // Try permitted devices first
                 const devices = await navigator.usb.getDevices();
                 let matchingDevice = devices.find(d => {
                     let match = true;
@@ -499,25 +491,21 @@
                         connectAttempts = 0;
                         return currentDevice;
                      } catch (e) {
-                        dfuUtil.logWarning(`Failed to connect to permitted device: ${e}. Trying requestDevice...`);
+                        dfuUtil.logWarning(`Failed to connect to permitted device: ${e}. Will try requestDevice if allowed.`);
                      }
                  }
 
-                 // If no permitted device found or connection failed...
-                 // Check if we are allowed to prompt the user
                  if (!allowRequestPrompt) {
                       dfuUtil.logWarning("Need device permission, but cannot prompt automatically.");
                       throw new NeedsUserGestureError("Device permission required, user interaction needed.");
                  }
 
-                 // If allowed, request device from user
                  dfuUtil.logInfo("Requesting device from user...");
                  try {
                     const selectedDevice = await navigator.usb.requestDevice({ filters: filters });
                     vid = selectedDevice.vendorId;
                     serial = selectedDevice.serialNumber || '';
                     sessionStorage.setItem(serialKey, serial);
-
                     currentDevice = await dfuUtil.connect(selectedDevice);
                     connectAttempts = 0;
                     return currentDevice;
@@ -529,7 +517,6 @@
 
 
           async function runFlashWorkflow() {
-               // ... (Flash workflow logic remains the same as previous version) ...
                 if (!currentDevice) { handleError("runFlashWorkflow called with no device.", "Device not connected."); return; }
                 if (currentState !== STATE.FLASHING) { console.warn("runFlashWorkflow called in incorrect state:", currentState); return; }
                 const firmware = dfuUtil.getFirmwareFile();
@@ -561,7 +548,6 @@
 
           // --- Main Button Click Handler ---
           async function handleConnectClick() {
-              // Reset state?
               if (currentState === STATE.ERROR) {
                   clearState();
                   if (downloadLog) dfuUtil.clearLog(downloadLog);
@@ -569,7 +555,6 @@
                   return;
               }
 
-              // Prevent clicks during busy states
               if ([STATE.CONNECTING_STAGE1, STATE.WAITING_DISCONNECT, STATE.CONNECTING_STAGE2,
                    STATE.WAITING_STABLE, STATE.CONNECTING_FLASH, STATE.FLASHING,
                    STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2].includes(currentState)) {
@@ -577,14 +562,12 @@
                    return;
               }
 
-               // Check firmware loaded only on initial connect
                if (currentState === STATE.IDLE && !firmwareLoaded) {
                    updateStatus("Firmware still loading...", "info");
                    return;
                }
 
                // --- Handle specific states where user click IS expected ---
-
                if (currentState === STATE.IDLE) {
                    // Start the process: Connect Stage 1
                    connectAttempts = 0;
@@ -595,8 +578,7 @@
                        if (!currentDevice) throw new Error("Device connection failed.");
                        if (currentDevice.device_.productName !== 'MCUBOOT') {
                             handleError(`Incorrect device: ${currentDevice.device_.productName}`, "Wrong mode! Check DFU Step 1.");
-                            try { await currentDevice.close(); } catch(e) {}
-                            clearState(); return;
+                            try { await currentDevice.close(); } catch(e) {} clearState(); return;
                        }
                        dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Stage 1).`);
                        serial = currentDevice.device_.serialNumber || '';
@@ -605,24 +587,19 @@
                        saveState(STATE.WAITING_DISCONNECT, serial);
                        await currentDevice.detach();
                        dfuUtil.logInfo("Detach command sent. Waiting for disconnect...");
-                       // --- Add disconnect timeout ---
-                       await Promise.race([
-                           currentDevice.waitDisconnected(5000),
-                           new Promise((_, reject) => setTimeout(() => reject(new Error("waitDisconnected timeout")), 5000))
-                       ]);
+                       await Promise.race([ currentDevice.waitDisconnected(5000), new Promise((_, reject) => setTimeout(() => reject(new Error("waitDisconnected timeout")), 5000)) ]);
                        dfuUtil.logInfo("Device disconnected (or timed out waiting).");
                        if (currentState === STATE.WAITING_DISCONNECT) { saveState(STATE.PROMPT_REFRESH_1, serial); }
                    } catch (error) {
-                       if (error.message?.toLowerCase().includes("stall")) { handleError(error, "Device stalled. Try again."); }
-                       else if (error.message?.includes("waitDisconnected timeout")) { if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logWarning("waitDisconnected timed out, proceeding."); saveState(STATE.PROMPT_REFRESH_1, serial); } }
-                       else if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); clearState(); }
-                       else { handleError(error, "Connection failed (Stage 1)."); }
-                       if (currentDevice) { try { await currentDevice.close(); } catch(e) {} currentDevice = device = null; }
-                       if (currentState !== STATE.IDLE && currentState !== STATE.ERROR) { saveState(STATE.ERROR); }
+                        if (error.message?.toLowerCase().includes("stall")) { handleError(error, "Device stalled. Try again."); }
+                        else if (error.message?.includes("waitDisconnected timeout")) { if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logWarning("waitDisconnected timed out, proceeding."); saveState(STATE.PROMPT_REFRESH_1, serial); } }
+                        else if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); clearState(); }
+                        else { handleError(error, "Connection failed (Stage 1)."); }
+                        if (currentDevice) { try { await currentDevice.close(); } catch(e) {} currentDevice = device = null; }
+                        if (currentState !== STATE.IDLE && currentState !== STATE.ERROR) { saveState(STATE.ERROR); }
                    }
 
                } else if (currentState === STATE.PROMPT_CONNECT_STAGE2) {
-                    // User clicked "Connect Stage 2"
                     saveState(STATE.CONNECTING_STAGE2, serial);
                     try {
                         currentDevice = await attemptConnection(vid, serial, true); // Allow prompt
@@ -633,22 +610,21 @@
                         try { let status = await currentDevice.getStatus(); if (status.state === dfu.dfuERROR) { await currentDevice.clearStatus(); dfuUtil.logInfo("Cleared error state."); }} catch (e) { dfuUtil.logWarning("Couldn't check/clear status: " + e); }
                         saveState(STATE.PROMPT_REFRESH_2, serial);
                     } catch (error) {
-                        handleError(error, "Connection failed (Stage 2).");
-                        // Don't clear state, let user reset from error
+                         if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); saveState(STATE.PROMPT_CONNECT_STAGE2); }
+                         else { handleError(error, "Connection failed (Stage 2)."); }
                     }
 
                } else if (currentState === STATE.PROMPT_CONNECT_FLASH) {
-                    // User clicked "Connect to Flash"
                     saveState(STATE.CONNECTING_FLASH, serial);
                     try {
                         currentDevice = await attemptConnection(vid, serial, true); // Allow prompt
                         if (!currentDevice) throw new Error("Final connection failed.");
                         dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Ready!).`);
                         saveState(STATE.FLASHING, serial);
-                        await runFlashWorkflow(); // Run the flashing
+                        await runFlashWorkflow();
                     } catch (error) {
-                        handleError(error, "Connection failed (Final).");
-                        // Don't clear state, let user reset from error
+                         if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); saveState(STATE.PROMPT_CONNECT_FLASH); }
+                         else { handleError(error, "Connection failed (Final)."); }
                     }
                }
           } // End handleConnectClick
@@ -658,39 +634,35 @@
            async function runAutoConnectSequence() {
                 console.log("Running auto-connect sequence for state:", currentState);
                 if (currentState === STATE.PROMPT_REFRESH_1) {
-                     saveState(STATE.CONNECTING_STAGE2, serial); // Assume connecting
+                     saveState(STATE.CONNECTING_STAGE2, serial);
                      try {
-                          // Attempt connection, but DO NOT allow prompt automatically
-                          currentDevice = await attemptConnection(vid, serial, false); // allowRequestPrompt = false
-                          if (!currentDevice) throw new Error("Stage 2 connection failed.");
+                          currentDevice = await attemptConnection(vid, serial, false); // DO NOT allow prompt
+                          if (!currentDevice) throw new Error("Stage 2 connection failed (auto).");
                           dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Stage 2).`);
                           saveState(STATE.WAITING_STABLE, serial);
                           await new Promise(resolve => setTimeout(resolve, 1500));
                           try { let status = await currentDevice.getStatus(); if (status.state === dfu.dfuERROR) { await currentDevice.clearStatus(); dfuUtil.logInfo("Cleared error state."); }} catch (e) { dfuUtil.logWarning("Couldn't check/clear status: " + e); }
-                          saveState(STATE.PROMPT_REFRESH_2, serial); // Proceed to next prompt
+                          saveState(STATE.PROMPT_REFRESH_2, serial);
                      } catch (error) {
                           if (error instanceof NeedsUserGestureError) {
-                               // *** THIS IS THE NEW HANDLING ***
-                               // We expected to connect automatically but couldn't (likely permissions cleared)
-                               saveState(STATE.PROMPT_CONNECT_STAGE2, serial); // Ask user to click
+                               // Ask user to click button for permission
+                               saveState(STATE.PROMPT_CONNECT_STAGE2, serial);
                           } else {
-                              // Handle other errors as before
                               handleError(error, "Connection failed (Stage 2).");
                           }
                      }
 
                  } else if (currentState === STATE.PROMPT_REFRESH_2) {
-                      saveState(STATE.CONNECTING_FLASH, serial); // Assume connecting
+                      saveState(STATE.CONNECTING_FLASH, serial);
                       try {
-                           // Attempt connection, but DO NOT allow prompt automatically
-                           currentDevice = await attemptConnection(vid, serial, false); // allowRequestPrompt = false
-                           if (!currentDevice) throw new Error("Final connection failed.");
+                           currentDevice = await attemptConnection(vid, serial, false); // DO NOT allow prompt
+                           if (!currentDevice) throw new Error("Final connection failed (auto).");
                            dfuUtil.logSuccess(`Connected to ${currentDevice.device_.productName} (Ready!).`);
                            saveState(STATE.FLASHING, serial);
                            await runFlashWorkflow();
                       } catch (error) {
                            if (error instanceof NeedsUserGestureError) {
-                               // Ask user to click for final connection permission
+                               // Ask user to click button for permission
                                saveState(STATE.PROMPT_CONNECT_FLASH, serial);
                            } else {
                                handleError(error, "Connection failed (Final).");
@@ -724,13 +696,13 @@
                    if (osToggle) osToggle.hidden = true;
                    instructionsSections.forEach(inst => inst.hidden = true);
                    if (readFirstWarning) readFirstWarning.hidden = true;
-                   return; // Stop initialization
+                   return;
                } else {
                    if (webUsbNotice) webUsbNotice.hidden = true;
                    if (readFirstWarning) readFirstWarning.hidden = false;
                }
 
-               // --- DFU Util Setup ---
+               // --- Basic DFU Util Setup ---
               if (typeof dfuUtil === 'undefined') { console.error("dfuUtil missing!"); handleError("Page setup error."); return; }
               dfuUtil.init();
               dfuUtil.setLogContext(downloadLog);
@@ -740,7 +712,7 @@
                         dfuUtil.logInfo("Device disconnected as expected after detach.");
                         saveState(STATE.PROMPT_REFRESH_1, serial);
                    } else if ( ![STATE.FLASH_COMPLETE, STATE.IDLE, STATE.ERROR, STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, STATE.PROMPT_CONNECT_STAGE2, STATE.PROMPT_CONNECT_FLASH].includes(currentState) )
-                   { // Only error on unexpected disconnect during active phases
+                   {
                        handleError("Device disconnected unexpectedly.", "Device disconnected!");
                    }
               });
@@ -758,7 +730,7 @@
                  });
 
               // --- Initial State & UI ---
-              loadState(); // Load state from sessionStorage
+              loadState();
               if (!connectButton) { console.error("Connect button lost!"); return; }
               connectButton.addEventListener('click', handleConnectClick);
 
@@ -869,32 +841,37 @@
 
       <section class="instructions card" data-ins="win" hidden>
         <h2>Step 2: Windows Driver Wrangling & Flashing Dance</h2>
-        <p>Howdy, Windows user! First, a one-time driver setup using Zadig, then follow the on-screen prompts for the flashing process.</p>
-        <h3>A. Install the WinUSB Driver with Zadig (One-Time Setup)</h3>
+        <p>Howdy, Windows user! First, a **mandatory** driver setup using Zadig for **both** DFU stages, then follow the on-screen prompts for the flashing process.</p>
+        <h3>A. Install the WinUSB Driver with Zadig (Do This TWICE!)</h3>
         <ol>
-          <li><strong>Fetch Zadig:</strong> Download the latest version from <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">zadig.akeo.ie</a>.</li>
-          <li><strong>Critter in DFU Mode:</strong> Ensure μCritter is in DFU Bootloader mode (Step 1) and connected via USB.</li>
-          <li><strong>Run Zadig (as Admin):</strong> Right-click Zadig, choose "Run as administrator".</li>
-          <li><strong>Reveal All Devices:</strong> In Zadig, `Options` → `List All Devices` (check it).</li>
-          <li><strong>Spot Your Critter:</strong> Select <code>MCUBOOT</code> (USB ID <code>2FE3:0100</code>).</li>
-          <li><strong>Choose the Right Driver:</strong> Ensure <code>WinUSB</code> is selected (NOT libusb etc.).</li>
-          <li><strong>Install/Replace Driver:</strong> Click the button and confirm prompts.</li>
-          <li><strong>Done!</strong> Close Zadig.</li>
+            <li><strong>Fetch Zadig:</strong> Download the latest version from <a href="https://zadig.akeo.ie/" target="_blank" rel="noopener">zadig.akeo.ie</a>.</li>
+            <li><strong>Critter in DFU Mode (Stage 1):</strong> Ensure μCritter is in DFU Bootloader mode (Step 1) and connected via USB.</li>
+            <li><strong>Run Zadig (as Admin):</strong> Right-click Zadig, choose "Run as administrator".</li>
+            <li><strong>Reveal All Devices:</strong> In Zadig, `Options` → `List All Devices` (check it).</li>
+            <li><strong>Install for Stage 1:</strong> Find and select <code>MCUBOOT</code> (USB ID <code>2FE3:0100</code>). Ensure <code>WinUSB</code> is selected. Click "Replace/Install Driver". Confirm prompts. Close Zadig for now.</li>
+            <li><strong>Start Web Flash (Stage 1 Connect):</strong> Go back to this browser page. Click the big orange button above ("Flash My Critter!"). Select `MCUBOOT` in the browser pop-up, click Connect.
+                 <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>, go back to Step 1 and retry DFU mode before doing Zadig.</div>
+            </li>
+             <li><strong>Wait for Disconnect & Stage 2:</strong> The device will connect, then disconnect as it switches to Stage 2. The page status *might* eventually prompt you to Refresh, but **IGNORE THAT PROMPT FOR NOW!** Wait about 5-10 seconds for Windows to recognize the Stage 2 device.</li>
+             <li><strong>Install for Stage 2:</strong> Re-open Zadig (as Admin). Go to `Options` → `List All Devices` again. Now, find the *new* <code>MCUBOOT</code> device in the list (it might appear briefly and could have USB ID <code>2FE3:FFFF</code> or still <code>2FE3:0100</code>). Select it. Ensure <code>WinUSB</code> is selected. Click "Replace/Install Driver" again. Close Zadig.</li>
+             <li><strong>HARDWARE & BROWSER RESTART (CRITICAL):</strong>
+                <ul>
+                    <li><strong>Unplug</strong> the μCritter's USB cable.</li>
+                    <li>Completely <strong>CLOSE</strong> your web browser (all windows).</li>
+                    <li><strong>Re-open</strong> your web browser and navigate back to this WebDFU page.</li>
+                    <li><strong>Re-plug</strong> the μCritter's USB cable (ensure it's still in DFU mode!).</li>
+                </ul>
+             </li>
+             <li><strong>NOW Refresh Page (if needed):</strong> The page should reload. It *might* automatically detect the state and prompt you to refresh again, or ask you to click "Connect Stage 2". Follow the on-screen prompts.</li>
         </ol>
-         <div class="note-box"><p><small><strong>Note:</strong> Installing for the first stage (<code>2FE3:0100</code>) is usually enough.</small></p></div>
-        <h3>B. Windows Flashing Dance</h3>
-         <p>With the driver ready, the page will guide you through the connect-refresh shuffle:</p>
+
+        <h3>B. Windows Flashing Dance (After Zadig x2 & Restarts)</h3>
+         <p>With drivers installed and everything restarted, follow the remaining prompts:</p>
          <ol>
-          <li>Make sure your Critter is connected (in DFU mode).</li>
-          <li>Click the big orange button above (text may vary based on state).</li>
-          <li>Select <code>MCUBOOT</code> in the browser pop-up *if needed* and click <strong>Connect</strong>.
-              <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>, your Critter isn't in DFU mode! Go back to Step 1.</div>
-          </li>
-          <li>The status message will tell you when to <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
-          <li>After refreshing, if prompted, click the button again (it might say "Connect Stage 2") and select <code>MCUBOOT</code> again if the pop-up appears.</li>
-          <li>The status message will tell you when to <strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
-          <li>After the final refresh, if prompted, click the button again (it might say "Connect to Flash"). Flashing should begin automatically!</li>
-        </ol>
+           <li>If prompted, click the button (e.g., "Connect Stage 2") and select <code>MCUBOOT</code> if the pop-up appears.</li>
+           <li>The status message will tell you when to <strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
+           <li>After the final refresh, if prompted, click the button again (e.g., "Connect to Flash"). Flashing should begin automatically!</li>
+         </ol>
          <p>Watch the progress log. Your Critter will reboot automatically when done. High five!</p>
       </section>
 
@@ -915,14 +892,14 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", 
           <li><strong>Re-plug Critter:</strong> Unplug/replug USB while in DFU mode.</li>
         </ol>
         <h3>B. Linux Flashing Dance</h3>
-        <p>With permissions granted, the page will guide the connect-refresh tango:</p>
+        <p>With permissions granted, the page will now guide the connect-refresh tango:</p>
          <ol>
           <li>Critter connected? DFU mode active? Good.</li>
           <li>Click the big orange button above (text may vary based on state).</li>
           <li>Select <code>MCUBOOT</code> in the browser pop-up *if needed*, click <strong>Connect</strong>.
              <div class="note-box"><strong>Heads Up!</strong> If you see <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>, your Critter isn't in DFU mode! Go back to Step 1.</div>
           </li>
-          <li>The status message will tell you when to <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
+          <li>The status message above the button will tell you when to <strong>Refresh this web page</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
           <li>After refreshing, if prompted, click the button again (it might say "Connect Stage 2") and select <code>MCUBOOT</code> again if the pop-up appears.</li>
           <li>The status message will tell you when to <strong>Refresh the page ONE MORE TIME</strong> (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5). Follow the prompt!</li>
           <li>After the final refresh, if prompted, click the button again (it might say "Connect to Flash"). Flashing should begin automatically!</li>
