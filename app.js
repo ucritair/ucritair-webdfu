@@ -48,6 +48,7 @@
 
     // --- Helper: Short Delay ---
     async function sleep(duration_ms) {
+        // No console log needed here if simpler version works
         return new Promise(resolve => setTimeout(resolve, duration_ms));
     }
 
@@ -71,23 +72,26 @@
         updateUI(); // Update UI whenever state changes
     }
 
-    // --- MODIFIED: loadState with Robust Validation ---
-    function loadState() {
+    // --- MODIFIED: loadState is now async and checks for device presence ---
+    async function loadState() {
         const savedState = sessionStorage.getItem(stateKey);
         const savedSerial = sessionStorage.getItem(serialKey) || '';
         let stateIsValid = false;
+        let requiresSerial = false; // Keep track if serial was required
+
+        console.log(`Attempting to load state: ${savedState}, Serial: ${savedSerial}`); // Added log
 
         // Basic validation: Is it a known state? Exclude terminal states.
         if (savedState && Object.values(STATE).includes(savedState) &&
-            savedState !== STATE.IDLE && savedState !== STATE.FLASH_COMPLETE && savedState !== STATE.ERROR)
+            savedState !== STATE.IDLE && savedState !== STATE.FLASH_COMPLETE) // Keep ERROR state initially
         {
             // Contextual validation: Check if required serial exists for intermediate states
-            const requiresSerial = [
+            requiresSerial = [
                 STATE.WAITING_DISCONNECT, STATE.PROMPT_REFRESH_1,
                 STATE.PROMPT_CONNECT_STAGE2, STATE.CONNECTING_STAGE2,
                 STATE.WAITING_STABLE, STATE.PROMPT_REFRESH_2,
                 STATE.PROMPT_CONNECT_FLASH, STATE.CONNECTING_FLASH,
-                STATE.FLASHING
+                STATE.FLASHING, STATE.ERROR // Also check serial if in ERROR state from previous run
             ].includes(savedState);
 
             if (requiresSerial && !savedSerial) {
@@ -95,35 +99,63 @@
                 console.warn(`Invalid saved state detected: State '${savedState}' requires a serial number, but none found in sessionStorage. Resetting.`);
                 stateIsValid = false;
             } else {
-                // State seems plausible
+                // State *seems* plausible based on storage values
                 stateIsValid = true;
+                 console.log(`State '${savedState}' seems initially valid.`);
             }
         } else if (savedState === STATE.ERROR) {
-            // Allow loading the ERROR state so user sees the message and reset button
-            stateIsValid = true;
+             // Allow loading ERROR state, serial check happens above
+             stateIsValid = true;
+             console.log("State is ERROR, initially valid.");
         }
+
+        // --- ADDED DEVICE CHECK ---
+        // If the state seems valid so far AND requires a specific serial number,
+        // check if a device with that serial is actually permitted/connected right now.
+        if (stateIsValid && requiresSerial && savedSerial) {
+            console.log(`State '${savedState}' requires serial '${savedSerial}'. Verifying device presence...`);
+            try {
+                const devices = await navigator.usb.getDevices();
+                const matchingDevice = devices.find(d => d.serialNumber === savedSerial && d.vendorId === vid);
+                if (!matchingDevice) {
+                    // No permitted device matching the stored serial was found!
+                    // This implies an inconsistency (e.g., user disconnected device).
+                    console.warn(`Saved state requires serial '${savedSerial}', but no matching permitted device found on load. Resetting state.`);
+                    stateIsValid = false; // Invalidate the state
+                } else {
+                    console.log(`Matching permitted device found for serial '${savedSerial}'. State remains valid.`);
+                }
+            } catch (error) {
+                console.error("Error checking permitted devices during loadState:", error);
+                // If we can't even check devices, it's safer to reset state
+                stateIsValid = false;
+            }
+        }
+        // --- END DEVICE CHECK ---
 
 
         if (stateIsValid) {
            currentState = savedState;
            serial = savedSerial; // Restore serial
-           console.log("State loaded:", currentState, "Serial:", serial);
+           console.log("State loaded successfully:", currentState, "Serial:", serial);
         } else {
-            // Default to IDLE if state is invalid, missing, or a terminal state (excluding ERROR)
-            if (savedState && savedState !== STATE.IDLE && savedState !== STATE.ERROR) {
-              console.log(`Invalid or terminal state '${savedState}' found. Resetting to IDLE.`);
+            // Default to IDLE if state is invalid, missing, inconsistent, or a terminal state (excluding ERROR if it became invalid)
+            if (savedState && savedState !== STATE.IDLE) { // Don't log reset if it was already IDLE
+              console.log(`Saved state '${savedState}' was invalid or inconsistent. Resetting to IDLE.`);
             } else {
-              console.log("No valid state loaded, starting fresh.");
+              console.log("No valid state loaded or state was IDLE, starting fresh.");
             }
             // Clear everything and set to IDLE
             currentState = STATE.IDLE;
             serial = '';
             sessionStorage.removeItem(stateKey);
             sessionStorage.removeItem(serialKey);
+            // No need to call clearState() here, as we are setting the state directly
         }
     }
 
     function clearState() {
+        const previousState = currentState; // Store previous state for logging if needed
         currentState = STATE.IDLE;
         currentDevice = null;
         // Ensure global 'device' potentially used by dfu scripts is also cleared
@@ -138,7 +170,7 @@
         connectAttempts = 0;
         sessionStorage.removeItem(stateKey);
         sessionStorage.removeItem(serialKey);
-        console.log("State cleared");
+        console.log(`State cleared (was ${previousState})`);
         if (dfuUtil && downloadLog) dfuUtil.clearLog(downloadLog); // Clear log on reset
         updateUI(); // Update UI to reflect cleared state
     }
@@ -283,7 +315,10 @@
         // Update user-facing status
         updateStatus(userMsg, "error");
         // Transition to error state to allow reset
-        saveState(STATE.ERROR);
+        // Avoid saving state if already in ERROR to prevent loops
+        if (currentState !== STATE.ERROR) {
+            saveState(STATE.ERROR);
+        }
     }
 
 
@@ -502,9 +537,8 @@
 
              try {
                  // Allow user prompt for the first connection attempt
-                 // Store result in a temp variable, `currentDevice` updated within attemptConnection
                  await attemptConnection(vid, null, true);
-                 // No need to check currentDevice here, attemptConnection throws on failure or updates it
+                 // currentDevice is updated within attemptConnection
 
                  // *** VERIFY DEVICE IS MCUBOOT ***
                  if (!currentDevice || !currentDevice.device_ || currentDevice.device_.productName !== 'MCUBOOT') {
@@ -520,7 +554,7 @@
                  await sleep(300); // Short delay using helper
 
                  saveState(STATE.WAITING_DISCONNECT, serial); // Update state before detach command
-                 await currentDevice.detach();
+                 await currentDevice.detach(); // Potential stall point
                  dfuUtil.logInfo("Detach command sent. Waiting for device disconnect...");
 
                  // Wait for disconnection (with timeout)
@@ -538,8 +572,10 @@
 
              } catch (error) {
                   // Provide user-friendly messages for common errors
-                  if (error.message?.toLowerCase().includes("stall")) { handleError(error, "Device stalled. Please reconnect & try again."); }
-                  else if (error.message?.includes("disconnect within 5 seconds")) {
+                  // Check specifically for stall error, possibly after detach
+                   if (error.message?.toLowerCase().includes("stall")) {
+                        handleError(error, "Device stalled during mode switch. Please Reset and try again.");
+                   } else if (error.message?.includes("disconnect within 5 seconds")) {
                       // If timeout occurs but we expected disconnect, proceed cautiously
                       if (currentState === STATE.WAITING_DISCONNECT) {
                           dfuUtil.logWarning("Device disconnect timeout after detach, proceeding to refresh prompt anyway.");
@@ -547,29 +583,24 @@
                       } else {
                           handleError(error, "Device disconnect timeout unexpectedly."); // Unexpected timeout
                       }
-                  }
-                  else if (error.message?.includes("No device selected")) {
+                  } else if (error.message?.includes("No device selected")) {
                        dfuUtil.logWarning("Device selection cancelled by user.");
                        clearState(); // Reset to idle if user cancels
-                  }
-                   else if (error.message?.includes("No matching device found")) {
+                   } else if (error.message?.includes("No matching device found")) {
                         // Handle the specific error from attemptConnection when filter fails
                         handleError(error, "Connection failed: No matching device found by Chrome.");
                         clearState(); // Reset to idle
-                   }
-                  else if (error instanceof NeedsUserGestureError) {
+                   } else if (error instanceof NeedsUserGestureError) {
                        // This shouldn't happen here as allowRequestPrompt=true, but handle defensively
                        dfuUtil.logWarning("User gesture needed unexpectedly during Stage 1.");
                        clearState(); // Go back to idle
-                  }
-                  else if (error.message?.includes("Incorrect device connected")) {
-                      // Handle the specific error thrown for wrong device type
-                      handleError(error, "Wrong mode! Put Critter in DFU (Step 1) and try again.");
+                   } else if (error.message?.includes("Incorrect device connected")) {
+                       // Handle the specific error thrown for wrong device type
+                       handleError(error, "Wrong mode! Put Critter in DFU (Step 1) and try again.");
                        // currentDevice might be the wrong device, try closing it
                        if (currentDevice) { try { await currentDevice.close(); } catch(e) { /* ignore close error */ } currentDevice = null; }
                        clearState(); // Reset fully
-                  }
-                   else {
+                   } else {
                        // General error handling
                        handleError(error, `Connection failed (Stage 1): ${error.message || error}`);
                    }
@@ -592,14 +623,14 @@
               saveState(STATE.CONNECTING_STAGE2, serial); // Update state
               dfuUtil.logInfo("Attempting Stage 2 connection after user click...");
               try {
-                  // --- ADD DELAY ---
+                  // --- Using 500ms DELAY ---
                   dfuUtil.logInfo("Waiting briefly before requesting device (Stage 2)...");
                   await sleep(500); // 500ms delay
                   // --- END DELAY ---
 
                   // Allow user prompt again for this stage, using stored serial
                   await attemptConnection(vid, serial, true);
-                  // No need to check currentDevice, error thrown on failure or updates it
+                  // currentDevice is updated within attemptConnection
 
                   dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`);
                   saveState(STATE.WAITING_STABLE, serial);
@@ -642,14 +673,14 @@
               saveState(STATE.CONNECTING_FLASH, serial); // Update state
               dfuUtil.logInfo("Attempting final connection for flashing after user click...");
               try {
-                   // --- ADD DELAY ---
+                   // --- Using 500ms DELAY ---
                    dfuUtil.logInfo("Waiting briefly before requesting device (Flash)...");
                    await sleep(500); // 500ms delay
                    // --- END DELAY ---
 
                   // Allow user prompt for the final time, using stored serial
                   await attemptConnection(vid, serial, true);
-                   // No need to check currentDevice, error thrown on failure or updates it
+                  // currentDevice is updated within attemptConnection
 
                   dfuUtil.logSuccess(`Reconnected to ${currentDevice.device_.productName} (Ready to Flash!). Serial: ${serial || 'N/A'}`);
 
@@ -704,14 +735,14 @@
                // Immediately transition state to indicate connection attempt
                saveState(STATE.CONNECTING_STAGE2, serial);
                try {
-                   // --- ADD DELAY ---
+                   // --- Using 500ms DELAY ---
                    dfuUtil.logInfo("Waiting briefly before auto-connecting (Stage 2)...");
                    await sleep(500); // Add a small delay here too for auto-connect
                    // --- END DELAY ---
 
                     // DO NOT allow prompt here - rely on existing permissions granted before refresh
                     await attemptConnection(vid, serial, false);
-                    // No need to check currentDevice, error thrown on failure or updates it
+                    // currentDevice is updated within attemptConnection
 
                     dfuUtil.logSuccess(`Auto-reconnected to ${currentDevice.device_.productName} (Stage 2). Serial: ${serial || 'N/A'}`);
                     saveState(STATE.WAITING_STABLE, serial);
@@ -750,14 +781,14 @@
                 // Immediately transition state
                 saveState(STATE.CONNECTING_FLASH, serial);
                 try {
-                    // --- ADD DELAY ---
+                    // --- Using 500ms DELAY ---
                     dfuUtil.logInfo("Waiting briefly before auto-connecting (Flash)...");
                     await sleep(500); // Add a small delay here too for auto-connect
                     // --- END DELAY ---
 
                      // DO NOT allow prompt here
                      await attemptConnection(vid, serial, false);
-                     // No need to check currentDevice, error thrown on failure or updates it
+                     // currentDevice is updated within attemptConnection
 
                      dfuUtil.logSuccess(`Auto-reconnected to ${currentDevice.device_.productName} (Ready to Flash!). Serial: ${serial || 'N/A'}`);
                      saveState(STATE.FLASHING, serial);
@@ -780,7 +811,7 @@
      }
 
     // --- Initialization Function ---
-    function initializePage() {
+    async function initializePage() { // Make initializePage async
          console.log("Initializing μCritter Pupdate Page...");
 
          // --- Cache DOM Element References ---
@@ -810,8 +841,8 @@
          }
 
           // --- Load Previous State (with validation) ---
-          // Do this *before* initializing DFU util, so DFU util logs reflect correct initial state
-          loadState();
+          // Await the async loadState function
+          await loadState();
 
          // --- Initialize DFU Utility ---
          // Ensure dfu-util.js (which defines DfuUtil constructor or dfuUtil object) and dfu.js are loaded
@@ -925,7 +956,9 @@
                // For now, just warns.
            }
            // Always ensure the intro section is visible (unless all instructions are hidden)
-           introSection.hidden = !sectionToShow; // Hide intro if no specific section is shown
+           if (introSection) { // Check if introSection exists
+                introSection.hidden = !sectionToShow; // Hide intro if no specific section is shown
+           }
            // Update button active state
            osButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.os === os); });
         }
@@ -970,7 +1003,13 @@
         // --- Trigger Auto-Connect Sequence (Delayed) ---
         // Run after a short delay to allow the page/scripts to fully settle
         console.log("Scheduling auto-connect sequence check...");
-        setTimeout(runAutoConnectSequence, 500); // 500ms delay
+        // Make sure runAutoConnectSequence is defined before calling setTimeout
+        if (typeof runAutoConnectSequence === "function") {
+            setTimeout(runAutoConnectSequence, 500); // 500ms delay
+        } else {
+            console.error("runAutoConnectSequence function not defined!");
+        }
+
 
     } // End initializePage
 
