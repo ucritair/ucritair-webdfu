@@ -122,9 +122,9 @@
                   <ol start="3">
                       <li><strong>Run Zadig as Admin:</strong> Right-click the Zadig file and choose "Run as administrator".</li>
                       <li><strong>Show All Devices:</strong> In Zadig's menu, click <code>Options</code> -> check ✅ <code>List All Devices</code>.</li>
-                      <li><strong>Find DFU Interface (Interface 2):</strong> Select <code>MCUBOOT</code> from the dropdown list.
+                      <li><strong>Find DFU Interface (Interface 2):</strong> Select <code>MCUBOOT</code> from the dropdown list (it should have USB ID <code>2FE3 0100</code>).
                          <div class="note-box">
-                             <p><strong>Interface Check:</strong> Zadig usually shows multiple "Interfaces" for <code>MCUBOOT</code> in this first stage (e.g., Interface 0, Interface 2) with the USB ID <code>2FE3 0100</code>. You need to select the one used for firmware updates, which is <strong>Interface 2</strong>. Make sure the entry you select in the dropdown specifically mentions Interface 2.</p>
+                             <p><strong>Interface Check:</strong> Zadig usually shows multiple "Interfaces" for <code>MCUBOOT</code> in this first stage (e.g., Interface 0, Interface 2). You need to select the one used for firmware updates, which is <strong>Interface 2</strong>. Make sure the entry you select in the dropdown specifically mentions Interface 2.</p>
                              <p>Do <strong>NOT</strong> change the driver for Interface 0 (the Serial/CDC interface).</p>
                              <p>🐾 Seeing <code>CAT PROTOTYPE</code> instead of <code>MCUBOOT</code>? Whoops! Wrong mode. Go back to Step 1, get the right screen, then re-open Zadig.</p></div></li>
                       <li><strong>Select WinUSB:</strong> Ensure the box next to the big green arrow shows <code>WinUSB</code> for the selected <strong>Interface 2</strong>.</li>
@@ -182,9 +182,9 @@
 
                 <section class="instructions card" data-ins="linux" hidden>
                   <h2>Step 2: Linux Pupdate Prep! (Permissions Time!)</h2>
-                  <p>Hey Linux friend! We need to give your browser permission to chat with the Critter. This is a quick, <strong>one-time setup</strong> per computer using a <code>udev</code> rule.</p>
+                  <p>Hey Linux friend! We need to give your browser permission to chat with the Critter. This is usually a quick, <strong>one-time setup</strong> per computer using a <code>udev</code> rule.</p>
                   <h3>A. Create udev Rule (Choose One Method)</h3>
-                  <p>You only need to do this once.</p>
+                  <p>You only need to do this once per computer.</p>
                   <h4>Method 1: Manual Steps</h4>
                   <ol>
                     <li><strong>Open your Terminal.</strong></li>
@@ -193,28 +193,34 @@
                       <pre><code class="language-text">SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"</code></pre>
                     </li>
-                    <li><strong>Save & Exit Nano:</strong> Press <kbd>Ctrl</kbd>+<kbd>X</kbd>, then press <kbd>Y</kbd> to confirm saving, then press <kbd>Enter</kbd>.</li>
-                    <li><strong>Check Group & Reload Rules:</strong> Check if you're in the `plugdev` group (see note below). Then, back in the terminal, run: <br/><code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>
+                    <li><strong>Save & Exit Nano:</strong> Press <kbd>Ctrl</kbd>+<kbd>X</kbd>, then press <kbd>Y</kbd>, then press <kbd>Enter</kbd>.</li>
+                    <li><strong>Check Group Membership:</strong> In the terminal, type <code>groups</code> and press Enter. Check if <code>plugdev</code> is listed.</li>
+                    <li><strong>Add to Group (if needed):</strong> If <code>plugdev</code> was NOT listed, run: <br/><code>sudo usermod -aG plugdev $USER</code> <br/>(This adds your current user to the group).</li>
+                    <li><strong>Reload Rules:</strong> Run: <br/><code>sudo udevadm control --reload-rules && sudo udevadm trigger</code></li>
+                    <li><strong>‼️ LOG OUT / LOG IN (CRITICAL if group was added):</strong> If you had to add yourself to the <code>plugdev</code> group in step 6, you **MUST log out completely** from your Linux session and log back in for the group change to take effect! Restarting the browser is not enough.</li>
                   </ol>
                    <h4>Method 2: Bash One-Liner</h4>
-                   <p>If you're comfortable with the terminal, this single command does the same thing as the manual steps (creates the file, adds your user to `plugdev` if needed, reloads rules). Copy the whole block and paste it into your terminal:</p>
+                   <p>This single command does the same thing as the manual steps (creates file, adds user, reloads rules). Copy/paste into your terminal:</p>
                    <pre><code class="language-text" style="font-size: 1.1rem;">echo -e 'SUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="0100", MODE="0666", GROUP="plugdev"\nSUBSYSTEM=="usb", ATTR{idVendor}=="2fe3", ATTR{idProduct}=="ffff", MODE="0666", GROUP="plugdev"' | sudo tee /etc/udev/rules.d/51-mcuboot.rules > /dev/null && sudo usermod -aG plugdev $USER && sudo udevadm control --reload-rules && sudo udevadm trigger && echo "Rule created/updated. Log out/in if you weren't in plugdev group before running this."</code></pre>
                    <div class="note-box">
-                        <p><small><strong>User Group Check:</strong> The commands above add your user to the <code>plugdev</code> group, which is needed on most systems. If this command added you to the group for the first time, you'll need to <strong>log out and log back in</strong> for the change to take effect!</small></p>
+                        <p><small><strong>Log Out Required?</strong> If this command added you to the <code>plugdev</code> group (check with <code>groups</code>), you **MUST log out completely** and log back in for permissions to work correctly!</small></p>
+                   </div>
+                   <div class="note-box">
+                        <p><strong>Snap/Flatpak Browsers:</strong> If you installed Chromium/Chrome via **Snap** (common on Ubuntu), you might also need to grant it explicit USB access by running: <br/><code>sudo snap connect chromium:raw-usb</code><br/>(Replace `chromium` if needed for Chrome). Restart the browser afterwards. If you use **Flatpak**, check its permissions (e.g., using Flatseal). Sometimes, installing Chrome directly from Google (as a `.deb` package) avoids these sandboxing issues.</p>
                    </div>
 
-                  <h3>B. Linux Pupdate Dance! (After Setup)</h3>
-                   <ol start="6"> <li><strong>Re-plug Your Critter:</strong> After setting up the rules (and logging back in if needed), unplug the Critter's USB cable and plug it back in (make sure it's showing the <strong>~CAT BOOTLOADER MODE~</strong> screen!).</li>
+                  <h3>B. Linux Pupdate Dance! (After Setup & Login)</h3>
+                   <ol start="9"> <li><strong>Re-plug Your Critter:</strong> After setting up rules (and logging back in if needed!), unplug/replug the Critter (make sure it shows the <strong>~CAT BOOTLOADER MODE~</strong> screen!).</li>
                     <li>Click the big <strong>Flash My Critter!</strong> button.</li>
                     <li>If a browser pop-up asks, choose <code>MCUBOOT</code> and click <strong>Connect</strong>.
-                       <div class="note-box">🐾 Seeing <code>CAT PROTOTYPE</code>? Whoops! Your Critter isn't in Bootloader mode. Go back to Step 1 and try again!</div>
+                       <div class="note-box">🐾 Seeing <code>CAT PROTOTYPE</code>? Whoops! Bootloader mode needed (Step 1).</div>
                     </li>
-                    <li>The status message will say <strong>REFRESH PAGE</strong>. Do it! (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5)</li>
-                    <li>After refreshing, click the button again if prompted ("Connect Stage 2"?). Select <code>MCUBOOT</code> if the pop-up shows.</li>
-                    <li>Status asks you to <strong>REFRESH PAGE AGAIN</strong>? Go for it! (<kbd>Ctrl</kbd>+<kbd>R</kbd> or F5)</li>
-                    <li>Last step! Click the button if needed ("Connect to Flash"?). The Pupdate begins!</li>
+                    <li>Follow the status prompts: Click <strong>REFRESH PAGE</strong> when asked (<kbd>Ctrl</kbd>+<kbd>R</kbd>).</li>
+                    <li>Click the button again ("Connect Stage 2"?) and select <code>MCUBOOT</code> if prompted.</li>
+                    <li>Click <strong>REFRESH PAGE AGAIN</strong> when asked.</li>
+                    <li>Click the button ("Connect to Flash"?) and select <code>MCUBOOT</code> if prompted. Flashing starts!</li>
                   </ol>
-                   <p>Watch the progress log. "Pupdate Complete!" = Success! 🎉 Your Critter will reboot with new smarts.</p>
+                   <p>Watch the progress log. "Pupdate Complete!" = Success! 🎉 Your Critter will reboot.</p>
                 </section>
 
                 <section class="instructions card" data-ins="android" hidden>
