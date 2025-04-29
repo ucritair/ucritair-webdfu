@@ -257,7 +257,7 @@
            } else { console.log("No auto-connect needed for state:", currentState); updateUI(); }
      }
 
-    // --- ********** NEW FUNCTION: Fetch, Parse, Display VERSION.MD ********** ---
+    // --- Fetch, Parse, Display VERSION.MD ---
     async function loadAndDisplayVersionInfo() {
         if (!versionInfoSection || !firmwareVersionSpan || !firmwareDateSpan || !firmwareChangesUl || !firmwareCommitCode) {
             console.warn("Version info DOM elements not found, skipping update.");
@@ -273,7 +273,7 @@
             const mdContent = await response.text();
             console.log("Parsing VERSION.MD content...");
 
-            // --- Parsing Logic ---
+            // Parsing Logic
             const lines = mdContent.split('\n');
             let version = 'Not Found';
             let buildDate = 'Not Found';
@@ -287,7 +287,6 @@
                 } else if (line.startsWith('**Build Date:**')) {
                     buildDate = line.substring('**Build Date:**'.length).trim();
                 } else if (line.startsWith('**Source Commit:**')) {
-                    // Extract the short commit hash (between backticks)
                     const match = line.match(/`([a-f0-9]{7,})`/);
                     if (match && match[1]) {
                          commit = match[1];
@@ -295,15 +294,12 @@
                 } else if (line.startsWith('## Changes')) {
                     captureChanges = true;
                 } else if (captureChanges && line.trim().startsWith('* ')) {
-                     // Extract text after '* ', handle inline code `` -> <code>
                     const changeText = line.trim().substring(2).replace(/`([^`]+)`/g, '<code>$1</code>');
                     changes.push(changeText);
                 } else if (line.startsWith('---')) {
-                    captureChanges = false; // Stop capturing changes at the separator
+                    captureChanges = false;
                 }
             }
-            // --- End Parsing Logic ---
-
 
             console.log(`Parsed: v=${version}, date=${buildDate}, commit=${commit}, changes=${changes.length}`);
 
@@ -312,12 +308,11 @@
             firmwareDateSpan.textContent = buildDate;
             firmwareCommitCode.textContent = commit;
 
-            // Populate changes list
             firmwareChangesUl.innerHTML = ''; // Clear loading/previous content
             if (changes.length > 0) {
                 changes.forEach(change => {
                     const li = document.createElement('li');
-                    li.innerHTML = change; // Use innerHTML because change might contain <code>
+                    li.innerHTML = change;
                     firmwareChangesUl.appendChild(li);
                 });
             } else {
@@ -325,25 +320,21 @@
                 li.textContent = 'No specific changes listed.';
                 firmwareChangesUl.appendChild(li);
             }
-
-            // Show the section
             versionInfoSection.hidden = false;
              console.log("Version info displayed.");
 
         } catch (error) {
             console.error("Failed to load or display version info:", error);
-            // Optionally display an error in the section
             firmwareVersionSpan.textContent = "Error";
             firmwareDateSpan.textContent = "Error";
             firmwareCommitCode.textContent = "Error";
             firmwareChangesUl.innerHTML = '<li>Could not load version details.</li>';
-            versionInfoSection.hidden = false; // Show section even on error to indicate failure
+            versionInfoSection.hidden = false;
         }
     }
-    // --- ********** END NEW FUNCTION ********** ---
 
     // --- Initialization Function ---
-    function initializePage() { // No longer async
+    function initializePage() {
          console.log("Initializing μCritter Pupdate Page...");
          // Cache standard elements
          connectButton = document.getElementById("connect");
@@ -356,7 +347,6 @@
          firmwareChangesUl = document.getElementById("firmwareChanges");
          firmwareCommitCode = document.getElementById("firmwareCommit");
 
-
          const webUsbNotice = document.getElementById("browserNotice");
          const layoutWrapper = document.querySelector(".layout-wrapper");
          const instructionsColumn = document.querySelector(".instructions-column");
@@ -365,7 +355,7 @@
          if (!isWebUsbSupported) { console.warn("WebUSB not supported."); if (webUsbNotice) { webUsbNotice.innerHTML = `<p><strong>WebUSB not supported.</strong> Use Chrome/Edge.</p>`; webUsbNotice.hidden = false; } if (layoutWrapper) layoutWrapper.style.display = 'none'; return; }
          else { if (webUsbNotice) webUsbNotice.hidden = true; if (layoutWrapper) layoutWrapper.style.display = 'flex'; }
 
-         loadState(); // Load state from session storage
+         loadState();
 
          if (typeof window.dfuUtil === 'undefined') { handleError(new Error("DFU util missing."), "Init Error: DFU util missing."); return; }
          dfuUtil = window.dfuUtil;
@@ -383,14 +373,12 @@
              } else if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logInfo("Disconnected as expected."); currentDevice = null; }
              else { dfuUtil.logInfo(`Disconnected in state: ${currentState}`); currentDevice = null; } updateUI(); });
 
-        updateUI(); // Initial UI update based on loaded state
+        updateUI();
 
-        // Load firmware and update UI when done
         dfuUtil.loadFirmware("zephyr.signed.bin")
             .then(() => { firmwareLoaded = true; dfuUtil.logInfo("Firmware loaded."); updateUI(); })
             .catch(err => { firmwareLoaded = false; handleError(err, `FW load failed: ${err.message}. Refresh.`); });
 
-        // *** Call the new function to load version info ***
         loadAndDisplayVersionInfo();
 
         if (!connectButton) { handleError(new Error("Connect button missing."), "Init Error: Connect button missing."); return; }
@@ -399,18 +387,37 @@
         // Setup OS instruction toggles
         const osButtons = document.querySelectorAll('.os-btn');
         const instructionsSections = instructionsColumn ? instructionsColumn.querySelectorAll('section.instructions[data-ins]') : [];
-        const introSection = document.getElementById('intro-instructions');
+        const introSection = document.getElementById('intro-instructions'); // Still need ref to introSection
 
         function switchOS(os) {
-             if (!instructionsSections.length || !introSection || !osButtons.length || !instructionsColumn) { console.warn("Instruction elements missing."); return; }
+             if (!instructionsSections.length || /* !introSection || */ !osButtons.length || !instructionsColumn) { // Removed introSection check here as it might not exist yet during init if DOMContentLoaded hasn't fired fully? Better check inside maybe.
+                 console.warn("Instruction elements missing or DOM not fully ready.");
+                 return;
+             }
+             // Re-fetch introSection here to be safe, or ensure it's cached reliably
+             const cachedIntroSection = document.getElementById('intro-instructions'); // Fetch again inside
+
              console.log("Switching view to:", os);
-             instructionsSections.forEach(sec => { sec.hidden = true; });
-             const sectionToShow = instructionsColumn.querySelector(`section.instructions[data-ins="${os}"]`);
-             if(sectionToShow) { sectionToShow.hidden = false; }
-             else { console.warn(`Instruction section missing for: '${os}'`); }
-             // Hide intro section if OS-specific instructions are shown
-             if (introSection) { introSection.hidden = (sectionToShow != null); }
-             osButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.os === os); });
+             instructionsSections.forEach(sec => { sec.hidden = true; }); // Hide all OS-specific sections
+
+             const sectionToShow = instructionsColumn.querySelector(`section.instructions[data-ins="${os}"]`); // Find the section for the specific OS
+
+             if(sectionToShow) {
+                 sectionToShow.hidden = false; // Show the specific OS section
+             } else {
+                 console.warn(`Instruction section missing for: '${os}'`);
+             }
+
+             // *** REMOVED LOGIC THAT HID INTRO SECTION ***
+             // Keep introSection visible (assuming it exists and is not hidden by default HTML)
+              if (cachedIntroSection) {
+                  cachedIntroSection.hidden = false; // Ensure Step 1 is visible
+              } else {
+                   console.warn("Intro section not found when trying to ensure visibility.");
+              }
+
+
+             osButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.os === os); }); // Update button styling
          }
 
         // Detect OS and set initial view
