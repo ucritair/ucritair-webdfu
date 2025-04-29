@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-86E5H2KF56"></script>
     <script>
     window.dataLayer = window.dataLayer || [];
@@ -70,8 +69,18 @@
                         <form id="configForm"> <div class="log" id="downloadLog">Waiting for device connection...</div>
                         </form>
                     </fieldset>
-                </section>
-            </div> <div class="column instructions-column">
+                </section> <section id="versionInfo" class="card" hidden> <h2>Latest Available Firmware</h2>
+                    <p><strong>Version:</strong> <span id="firmwareVersion">Loading...</span></p>
+                    <p><strong>Date:</strong> <span id="firmwareDate">Loading...</span></p>
+                    <h3 style="margin-top: 1.5em;">Changes in this version:</h3>
+                    <ul id="firmwareChanges" style="padding-left: 1.5em; list-style-type: disc;">
+                        <li>Loading...</li>
+                    </ul>
+                     <p><small>Based on commit: <code id="firmwareCommit">...</code></small></p>
+                     <p style="margin-top: 1.5em; text-align: center;">
+                        <a href="CHANGELOG.MD" target="_blank">View Full Changelog</a>
+                     </p>
+                     </section> </div> <div class="column instructions-column">
                 <div class="os-toggle card">
                     <span>Show Instructions For:</span>
                     <div>

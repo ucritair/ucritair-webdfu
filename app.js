@@ -7,6 +7,13 @@
     let statusDisplay = null;
     let downloadLog = null;
     let dfuUtil = null; // Will hold the DfuUtil instance (assigned during init)
+    // Version Info Elements
+    let versionInfoSection = null;
+    let firmwareVersionSpan = null;
+    let firmwareDateSpan = null;
+    let firmwareChangesUl = null;
+    let firmwareCommitCode = null;
+
 
     // --- State Definitions (using const for immutability) ---
     const STATE = Object.freeze({ // Use Object.freeze for safety
@@ -53,8 +60,6 @@
         console.log("State saved:", stateToSave, "Serial:", deviceSerial || 'N/A'); updateUI();
     }
 
-    // --- REVERTED loadState ---
-    // Checks only sessionStorage, does not verify device presence via getDevices()
     function loadState() {
         const savedState = sessionStorage.getItem(stateKey);
         const savedSerial = sessionStorage.getItem(serialKey) || '';
@@ -64,11 +69,9 @@
 
         if (savedState && Object.values(STATE).includes(savedState)) {
              if (savedState === STATE.IDLE || savedState === STATE.FLASH_COMPLETE) {
-                 // These states are always valid but mean we start fresh/idle
-                 stateIsValid = false; // Treat as invalid for *restore* purposes
+                 stateIsValid = false;
                  console.log(`State '${savedState}' loaded, resetting to IDLE.`);
              } else {
-                 // Check if intermediate/error state requires a serial
                  const requiresSerial = [
                      STATE.WAITING_DISCONNECT, STATE.PROMPT_REFRESH_1,
                      STATE.PROMPT_CONNECT_STAGE2, STATE.CONNECTING_STAGE2,
@@ -78,29 +81,23 @@
                  ].includes(savedState);
 
                  if (requiresSerial && !savedSerial) {
-                     // Missing serial when required = invalid state
                      console.warn(`Invalid: State '${savedState}' requires serial, none found.`);
                      stateIsValid = false;
                  } else {
-                     // State name is valid and either doesn't need serial, or has one
-                     // This is now considered valid for restoring.
                      stateIsValid = true;
                      console.log(`State '${savedState}' valid based on storage.`);
                  }
             }
         } else {
-            // No state saved, or unknown state value
             stateIsValid = false;
             console.log(`No valid state found in storage.`);
         }
 
-        // Set state based on validation
         if (stateIsValid) {
            currentState = savedState;
            serial = savedSerial;
            console.log("State restored:", currentState, "Serial:", serial);
         } else {
-           // Default to IDLE if state was invalid or not found
            if (savedState && savedState !== STATE.IDLE) { console.log(`State '${savedState}' invalid/resetting to IDLE.`); }
            currentState = STATE.IDLE;
            serial = '';
@@ -260,16 +257,115 @@
            } else { console.log("No auto-connect needed for state:", currentState); updateUI(); }
      }
 
+    // --- ********** NEW FUNCTION: Fetch, Parse, Display VERSION.MD ********** ---
+    async function loadAndDisplayVersionInfo() {
+        if (!versionInfoSection || !firmwareVersionSpan || !firmwareDateSpan || !firmwareChangesUl || !firmwareCommitCode) {
+            console.warn("Version info DOM elements not found, skipping update.");
+            return;
+        }
+
+        try {
+            console.log("Fetching VERSION.MD...");
+            const response = await fetch('VERSION.MD');
+            if (!response.ok) {
+                throw new Error(`HTTP error ${response.status} fetching VERSION.MD`);
+            }
+            const mdContent = await response.text();
+            console.log("Parsing VERSION.MD content...");
+
+            // --- Parsing Logic ---
+            const lines = mdContent.split('\n');
+            let version = 'Not Found';
+            let buildDate = 'Not Found';
+            let commit = 'Not Found';
+            const changes = [];
+            let captureChanges = false;
+
+            for (const line of lines) {
+                if (line.startsWith('# Version ')) {
+                    version = line.substring('# Version '.length).trim();
+                } else if (line.startsWith('**Build Date:**')) {
+                    buildDate = line.substring('**Build Date:**'.length).trim();
+                } else if (line.startsWith('**Source Commit:**')) {
+                    // Extract the short commit hash (between backticks)
+                    const match = line.match(/`([a-f0-9]{7,})`/);
+                    if (match && match[1]) {
+                         commit = match[1];
+                    }
+                } else if (line.startsWith('## Changes')) {
+                    captureChanges = true;
+                } else if (captureChanges && line.trim().startsWith('* ')) {
+                     // Extract text after '* ', handle inline code `` -> <code>
+                    const changeText = line.trim().substring(2).replace(/`([^`]+)`/g, '<code>$1</code>');
+                    changes.push(changeText);
+                } else if (line.startsWith('---')) {
+                    captureChanges = false; // Stop capturing changes at the separator
+                }
+            }
+            // --- End Parsing Logic ---
+
+
+            console.log(`Parsed: v=${version}, date=${buildDate}, commit=${commit}, changes=${changes.length}`);
+
+            // Update DOM
+            firmwareVersionSpan.textContent = version;
+            firmwareDateSpan.textContent = buildDate;
+            firmwareCommitCode.textContent = commit;
+
+            // Populate changes list
+            firmwareChangesUl.innerHTML = ''; // Clear loading/previous content
+            if (changes.length > 0) {
+                changes.forEach(change => {
+                    const li = document.createElement('li');
+                    li.innerHTML = change; // Use innerHTML because change might contain <code>
+                    firmwareChangesUl.appendChild(li);
+                });
+            } else {
+                const li = document.createElement('li');
+                li.textContent = 'No specific changes listed.';
+                firmwareChangesUl.appendChild(li);
+            }
+
+            // Show the section
+            versionInfoSection.hidden = false;
+             console.log("Version info displayed.");
+
+        } catch (error) {
+            console.error("Failed to load or display version info:", error);
+            // Optionally display an error in the section
+            firmwareVersionSpan.textContent = "Error";
+            firmwareDateSpan.textContent = "Error";
+            firmwareCommitCode.textContent = "Error";
+            firmwareChangesUl.innerHTML = '<li>Could not load version details.</li>';
+            versionInfoSection.hidden = false; // Show section even on error to indicate failure
+        }
+    }
+    // --- ********** END NEW FUNCTION ********** ---
+
     // --- Initialization Function ---
     function initializePage() { // No longer async
          console.log("Initializing μCritter Pupdate Page...");
-         connectButton = document.getElementById("connect"); statusDisplay = document.getElementById("status"); downloadLog = document.getElementById("downloadLog");
-         const webUsbNotice = document.getElementById("browserNotice"); const layoutWrapper = document.querySelector(".layout-wrapper"); const instructionsColumn = document.querySelector(".instructions-column");
+         // Cache standard elements
+         connectButton = document.getElementById("connect");
+         statusDisplay = document.getElementById("status");
+         downloadLog = document.getElementById("downloadLog");
+         // Cache new version info elements
+         versionInfoSection = document.getElementById("versionInfo");
+         firmwareVersionSpan = document.getElementById("firmwareVersion");
+         firmwareDateSpan = document.getElementById("firmwareDate");
+         firmwareChangesUl = document.getElementById("firmwareChanges");
+         firmwareCommitCode = document.getElementById("firmwareCommit");
+
+
+         const webUsbNotice = document.getElementById("browserNotice");
+         const layoutWrapper = document.querySelector(".layout-wrapper");
+         const instructionsColumn = document.querySelector(".instructions-column");
          const isWebUsbSupported = typeof navigator.usb !== 'undefined';
+
          if (!isWebUsbSupported) { console.warn("WebUSB not supported."); if (webUsbNotice) { webUsbNotice.innerHTML = `<p><strong>WebUSB not supported.</strong> Use Chrome/Edge.</p>`; webUsbNotice.hidden = false; } if (layoutWrapper) layoutWrapper.style.display = 'none'; return; }
          else { if (webUsbNotice) webUsbNotice.hidden = true; if (layoutWrapper) layoutWrapper.style.display = 'flex'; }
 
-          loadState(); // Call synchronous loadState
+         loadState(); // Load state from session storage
 
          if (typeof window.dfuUtil === 'undefined') { handleError(new Error("DFU util missing."), "Init Error: DFU util missing."); return; }
          dfuUtil = window.dfuUtil;
@@ -277,7 +373,6 @@
 
          try { if (downloadLog) { dfuUtil.setLogContext(downloadLog); console.log("Log context set."); }
              else { console.error("Log element missing!"); handleError(new Error("Log element missing."), "Init Error: Log display missing."); return; }
-             // NOTE: Assuming dfuUtil.init() was called successfully at the end of dfu-util.js
              console.log("dfuUtil checks passed.");
          } catch (error) { handleError(error, "Failed to initialize DFU Utility."); return; }
 
@@ -288,17 +383,57 @@
              } else if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logInfo("Disconnected as expected."); currentDevice = null; }
              else { dfuUtil.logInfo(`Disconnected in state: ${currentState}`); currentDevice = null; } updateUI(); });
 
-        updateUI(); // Initial UI update
-        dfuUtil.loadFirmware("zephyr.signed.bin") .then(() => { firmwareLoaded = true; dfuUtil.logInfo("Firmware loaded."); updateUI(); }) .catch(err => { firmwareLoaded = false; handleError(err, `FW load failed: ${err.message}. Refresh.`); });
-        if (!connectButton) { handleError(new Error("Connect button missing."), "Init Error: Connect button missing."); return; } connectButton.addEventListener('click', handleConnectClick);
-        const osButtons = document.querySelectorAll('.os-btn'); const instructionsSections = instructionsColumn ? instructionsColumn.querySelectorAll('section.instructions[data-ins]') : []; const introSection = document.getElementById('intro-instructions');
-        function switchOS(os) { if (!instructionsSections.length || !introSection || !osButtons.length || !instructionsColumn) { console.warn("Instruction elements missing."); return; } console.log("Switching view to:", os); instructionsSections.forEach(sec => { sec.hidden = true; }); const sectionToShow = instructionsColumn.querySelector(`section.instructions[data-ins="${os}"]`); if(sectionToShow) { sectionToShow.hidden = false; } else { console.warn(`Instruction section missing for: '${os}'`); } if (introSection) { introSection.hidden = !sectionToShow; } osButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.os === os); }); }
+        updateUI(); // Initial UI update based on loaded state
+
+        // Load firmware and update UI when done
+        dfuUtil.loadFirmware("zephyr.signed.bin")
+            .then(() => { firmwareLoaded = true; dfuUtil.logInfo("Firmware loaded."); updateUI(); })
+            .catch(err => { firmwareLoaded = false; handleError(err, `FW load failed: ${err.message}. Refresh.`); });
+
+        // *** Call the new function to load version info ***
+        loadAndDisplayVersionInfo();
+
+        if (!connectButton) { handleError(new Error("Connect button missing."), "Init Error: Connect button missing."); return; }
+        connectButton.addEventListener('click', handleConnectClick);
+
+        // Setup OS instruction toggles
+        const osButtons = document.querySelectorAll('.os-btn');
+        const instructionsSections = instructionsColumn ? instructionsColumn.querySelectorAll('section.instructions[data-ins]') : [];
+        const introSection = document.getElementById('intro-instructions');
+
+        function switchOS(os) {
+             if (!instructionsSections.length || !introSection || !osButtons.length || !instructionsColumn) { console.warn("Instruction elements missing."); return; }
+             console.log("Switching view to:", os);
+             instructionsSections.forEach(sec => { sec.hidden = true; });
+             const sectionToShow = instructionsColumn.querySelector(`section.instructions[data-ins="${os}"]`);
+             if(sectionToShow) { sectionToShow.hidden = false; }
+             else { console.warn(`Instruction section missing for: '${os}'`); }
+             // Hide intro section if OS-specific instructions are shown
+             if (introSection) { introSection.hidden = (sectionToShow != null); }
+             osButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.os === os); });
+         }
+
+        // Detect OS and set initial view
         const ua = navigator.userAgent; const platform = navigator.platform; let detectedOS = 'linux';
         if (/android/i.test(ua)) { if (/chrome/i.test(ua) && !/edg/i.test(ua)) { detectedOS = 'android'; console.log("Detected Android (Chrome)."); } else { console.log("Detected Android (Non-Chrome browser)."); detectedOS = 'android'; } }
-        else if (/Win/.test(ua) || /Win/.test(platform)) { detectedOS = 'win'; } else if (/Mac|iPod|iPhone|iPad/.test(platform)) { detectedOS = 'mac'; } console.log("Final Detected OS:", detectedOS); switchOS(detectedOS);
-        osButtons.forEach(btn => { btn.addEventListener('click', (e) => { const os = e.target.dataset.os; if (os) { switchOS(os); } }); });
-        console.log("Scheduling auto-connect..."); if (typeof runAutoConnectSequence === "function") { setTimeout(runAutoConnectSequence, 500); } else { console.error("runAutoConnectSequence missing!"); }
+        else if (/Win/.test(ua) || /Win/.test(platform)) { detectedOS = 'win'; }
+        else if (/Mac|iPod|iPhone|iPad/.test(platform)) { detectedOS = 'mac'; }
+        console.log("Final Detected OS:", detectedOS);
+        switchOS(detectedOS); // Set initial OS view
+
+        osButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => { const os = e.target.dataset.os; if (os) { switchOS(os); } });
+        });
+
+        // Schedule auto-connect sequence check
+        console.log("Scheduling auto-connect...");
+        if (typeof runAutoConnectSequence === "function") { setTimeout(runAutoConnectSequence, 500); }
+        else { console.error("runAutoConnectSequence missing!"); }
+
     } // End initializePage
 
-    if (document.readyState === 'loading') { document.addEventListener("DOMContentLoaded", initializePage); } else { initializePage(); }
+    // Run initialization when the DOM is ready
+    if (document.readyState === 'loading') { document.addEventListener("DOMContentLoaded", initializePage); }
+    else { initializePage(); }
+
 })(); // End main IIFE
