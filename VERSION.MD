@@ -1,18 +1,13 @@
-# Version v0-0-16-78
+# Version v0-0-17-78
 
-**Source Commit:** `1718527` (Based on `1718527e929b80b6db1faa104a82d5268d947c6d` in `ucritair-firmware`)
-**Build Date:** 2025-05-03 20:25:10 CDT
+**Source Commit:** `2f10e21` (Based on `2f10e217dc685cceecded83490a673c8ceeb15f9` in `ucritair-firmware`)
+**Build Date:** 2025-05-03 20:54:37 CDT
 
 ## Changes
 
-* 1718527 0.0.16.78 minor update to conditions for first eink refresh
-* ec4daab Merge branch 'tweak-eink-refresh-on-wake'
-* 6bf06f0 Updated e-ink first update conditions
-* b3dd7ba Resolved merge conflict by taking new eink update behaviour
-* 77ce189 0.0.16.77 first e-ink update happens after first co2 read is available
-* dda0d6e Merge branch 'tweak-eink-refresh-on-wake'
-* 5bf3d82 Hack that will do for now: device now forces eink update as soon as a valid co2 reading is available
-* 95bacd6 Commit partial progress before task switch
+* 2f10e21 0.0.17.78 fixed menu index wrap bug
+* 7a1a814 Merge branch 'fix-menu-inputs'
+* 7234acd Okay really fixed the menu wraparound thing this time. I think
 
 ---
-*Based on ucritair-firmware commit: 1718527e929b80b6db1faa104a82d5268d947c6d
+*Based on ucritair-firmware commit: 2f10e217dc685cceecded83490a673c8ceeb15f9
