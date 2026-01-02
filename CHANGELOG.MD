@@ -1,5 +1,20 @@
 # Version v1-9-48-84
 
+**Source Commit:** `f69a9f4` (Based on `f69a9f459c34eab2b96ae5fa2d0fddb518300992` in `ucritair-firmware`)
+**Build Date:** 2026-01-02 13:11:19 CST
+
+## Changes
+
+* f69a9f45 fix the low battery sleep protection
+
+---
+*Based on ucritair-firmware commit: f69a9f459c34eab2b96ae5fa2d0fddb518300992
+
+---
+
+
+# Version v1-9-48-84
+
 **Source Commit:** `b121124` (Based on `b121124a56651c831105bfbca1c0e33d9e4a6356` in `ucritair-firmware`)
 **Build Date:** 2025-12-31 10:42:59 CST
 
