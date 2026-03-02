@@ -48,21 +48,23 @@
     const CMD_DFU_TRIGGER = new Uint8Array([0xCA, 0x7D, 0xF0, 0x01]);
     const CMD_SET_TIME_HEADER = new Uint8Array([0xCA, 0x7D, 0x54, 0x04]);
 
+    const SERIAL_FILTERS = [{ usbVendorId: 0x2FE3 }];
+
     const webSerial = {
         supported: typeof navigator.serial !== 'undefined',
 
         async triggerDfu() {
-            const port = await navigator.serial.requestPort();
+            const port = await navigator.serial.requestPort({ filters: SERIAL_FILTERS });
             await port.open({ baudRate: SERIAL_BAUD });
             const writer = port.writable.getWriter();
             await writer.write(CMD_DFU_TRIGGER);
             writer.releaseLock();
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 500));
             try { await port.close(); } catch (e) { /* device may have rebooted */ }
         },
 
         async setTime() {
-            const port = await navigator.serial.requestPort();
+            const port = await navigator.serial.requestPort({ filters: SERIAL_FILTERS });
             await port.open({ baudRate: SERIAL_BAUD });
 
             // Compute local time as fake UTC (device has no timezone support)
@@ -602,28 +604,29 @@
                 serialDfuBtn.textContent = 'USB Serial not supported in this browser';
             } else {
                 serialDfuBtn.addEventListener('click', async () => {
-                    serialDfuBtn.disabled = true;
                     if (serialDfuStatusSpan) {
                         serialDfuStatusSpan.style.display = 'inline-block';
-                        serialDfuStatusSpan.textContent = 'Sending DFU command...';
+                        serialDfuStatusSpan.textContent = 'Select your device\'s serial port...';
                         serialDfuStatusSpan.className = 'status status-info';
                     }
                     try {
+                        // requestPort() opens a port picker — don't disable button until after user selects
                         await webSerial.triggerDfu();
+                        serialDfuBtn.disabled = true;
                         if (serialDfuStatusSpan) {
-                            serialDfuStatusSpan.textContent = 'Sent! Device rebooting into bootloader...';
+                            serialDfuStatusSpan.textContent = 'DFU command sent! Device rebooting into bootloader...';
                             serialDfuStatusSpan.className = 'status status-success';
                         }
                         setTimeout(() => {
                             if (serialDfuStatusSpan) {
-                                serialDfuStatusSpan.textContent = 'Bootloader mode ready — proceed with Flash!';
+                                serialDfuStatusSpan.textContent = 'Bootloader mode ready — now click "Flash My Critter!" above.';
                             }
                             serialDfuBtn.disabled = false;
-                        }, 4000);
+                        }, 5000);
                     } catch (e) {
                         if (serialDfuStatusSpan) {
                             if (e.name === 'NotFoundError') {
-                                serialDfuStatusSpan.textContent = 'No device selected.';
+                                serialDfuStatusSpan.textContent = 'No device selected. Make sure your Critter is connected via USB.';
                             } else {
                                 serialDfuStatusSpan.textContent = `Error: ${e.message}`;
                             }
