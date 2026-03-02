@@ -45,6 +45,12 @@
         <div class="layout-wrapper">
 
             <div class="column flash-column">
+                <!-- Update Mode Tabs -->
+                <div id="updateModeTabs" class="card update-mode-tabs">
+                    <button class="mode-tab active" data-mode="standard">Standard Update</button>
+                    <button class="mode-tab" data-mode="bootloader">Bootloader Update</button>
+                </div>
+
                 <section id="flashSection" class="card">
                     <h2>Flash Your Critter</h2>
                     <p style="text-align: center;">Get your Critter into Bootloader mode (Step 1 below!) & follow the prompts here!</p>
@@ -69,7 +75,57 @@
                         <form id="configForm"> <div class="log" id="downloadLog">Waiting for device connection...</div>
                         </form>
                     </fieldset>
-                </section> <section id="versionInfo" class="card" hidden> <h2>Latest Available Firmware</h2>
+
+                    <div id="timeSetArea" hidden>
+                        <p style="text-align: center; margin-top: 1.5em;">
+                            <button id="timeSetBtn" class="serial-trigger-btn">Set Device Clock</button>
+                            <span id="timeSetStatus" class="status status-info" style="display:none;"></span>
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Bootloader Update Section (hidden by default) -->
+                <section id="bootloaderSection" class="card" hidden>
+                    <h2>Bootloader Update</h2>
+                    <div class="note-box" style="background-color: #ffebee; border-left-color: #d32f2f;">
+                        <p><strong>Advanced Users Only!</strong> This multi-step process updates your device's bootloader. Only do this if instructed by the uCritter team.</p>
+                    </div>
+
+                    <div id="bl-step-tracker">
+                        <div class="bl-step active" data-bl-step="1">
+                            <h3>Step 1: Flash Bootloader Firmware</h3>
+                            <p>This special firmware contains a bootloader update image. Get your Critter into bootloader mode first (see instructions on the right).</p>
+                            <p>
+                                <button id="bl-connect-step1" disabled>Flash Bootloader Firmware</button>
+                                <span id="bl-status-step1" class="status status-info">Loading firmware...</span>
+                            </p>
+                        </div>
+
+                        <div class="bl-step" data-bl-step="2">
+                            <h3>Step 2: Update Bootloader on Device</h3>
+                            <p>After your device reboots from Step 1, navigate to:</p>
+                            <p style="text-align:center;"><code>Settings &gt; DEVELOPER &gt; UPDATE BOOTLOADER</code></p>
+                            <p>Confirm the update on your device and wait for it to reboot completely.</p>
+                            <p><button id="bl-confirm-step2">I've Updated the Bootloader</button></p>
+                        </div>
+
+                        <div class="bl-step" data-bl-step="3">
+                            <h3>Step 3: Flash Standard Firmware</h3>
+                            <p>Now get your Critter back into bootloader mode and flash the regular firmware to replace the bootloader-update build.</p>
+                            <p>
+                                <button id="bl-connect-step3" disabled>Flash Standard Firmware</button>
+                                <span id="bl-status-step3" class="status status-info">Waiting for Step 2...</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <fieldset>
+                        <legend>Bootloader Update Progress</legend>
+                        <div class="log" id="bootloaderLog">Waiting...</div>
+                    </fieldset>
+                </section>
+
+                <section id="versionInfo" class="card" hidden> <h2>Latest Available Firmware</h2>
                     <p><strong>Version:</strong> <span id="firmwareVersion">Loading...</span></p>
                     <p><strong>Date:</strong> <span id="firmwareDate">Loading...</span></p>
                     <h3 style="margin-top: 1.5em;">Changes in this version:</h3>
@@ -98,6 +154,12 @@
                         <p style="text-align: center; margin-top: 0.5em;"><strong>~CAT BOOTLOADER MODE~</strong><br/><small>Connect to a computer over USB<br/>to download new firmware.</small></p>
                     </div>
                     <ul>
+                        <li><strong>USB Serial Trigger (Easiest!):</strong> If your Critter is running recent firmware and connected via USB, click this button to reboot it directly into bootloader mode — no paperclip needed!
+                            <p style="margin-top: 0.5em;">
+                                <button id="serialDfuTrigger" class="serial-trigger-btn">Enter Bootloader via USB</button>
+                                <span id="serialDfuStatus" class="status status-info" style="display:none;"></span>
+                            </p>
+                        </li>
                         <li><strong>Paperclip Poke:</strong> Hold down <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>. While holding, gently press the reset button (in the little hole above the speaker) with a paperclip. Release the paperclip first, <em>then</em> the buttons.</li>
                         <li><strong>Sleepy Wake-up:</strong> Is your Critter napping? Press and hold <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd> at the same time to wake it directly into Bootloader mode!</li>
                         <li><strong>Menu Method:</strong> From the Critter's menu, go to <code>Power</code> → <code>Sleep</code>. Let it snooze, then use the "Sleepy Wake-up" method above.</li>

@@ -43,6 +43,61 @@
     let serial = ''; // Store device serial number across refreshes
     let firmwareLoaded = false; // Flag for firmware loading status
 
+    // --- WebSerial Constants & Helpers ---
+    const SERIAL_BAUD = 115200;
+    const CMD_DFU_TRIGGER = new Uint8Array([0xCA, 0x7D, 0xF0, 0x01]);
+    const CMD_SET_TIME_HEADER = new Uint8Array([0xCA, 0x7D, 0x54, 0x04]);
+
+    const webSerial = {
+        supported: typeof navigator.serial !== 'undefined',
+
+        async triggerDfu() {
+            const port = await navigator.serial.requestPort();
+            await port.open({ baudRate: SERIAL_BAUD });
+            const writer = port.writable.getWriter();
+            await writer.write(CMD_DFU_TRIGGER);
+            writer.releaseLock();
+            await new Promise(r => setTimeout(r, 200));
+            try { await port.close(); } catch (e) { /* device may have rebooted */ }
+        },
+
+        async setTime() {
+            const port = await navigator.serial.requestPort();
+            await port.open({ baudRate: SERIAL_BAUD });
+
+            // Compute local time as fake UTC (device has no timezone support)
+            const now = new Date();
+            const localAsUtc = Math.floor(
+                Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(),
+                         now.getHours(), now.getMinutes(), now.getSeconds()) / 1000
+            );
+
+            const payload = new Uint8Array(8);
+            payload.set(CMD_SET_TIME_HEADER, 0);
+            const view = new DataView(payload.buffer);
+            view.setUint32(4, localAsUtc, true); // little-endian
+
+            const writer = port.writable.getWriter();
+            await writer.write(payload);
+            writer.releaseLock();
+            await new Promise(r => setTimeout(r, 200));
+            await port.close();
+
+            return now.toLocaleString();
+        }
+    };
+
+    // --- Update Mode & Flash Context ---
+    let currentMode = 'standard'; // 'standard' or 'bootloader'
+    let bootloaderStep = 1;
+    let blFirmwareLoaded = false;
+
+    // Flash context: parameterizes which firmware to flash and post-flash behavior
+    let flashContext = {
+        firmwareName: 'default',  // which dfu-util firmware slot to use
+        onComplete: null           // callback after FLASH_COMPLETE (null = default behavior)
+    };
+
     // --- Session Storage Keys (using const for keys) ---
     const stateKey = 'ucritterFlashState';
     const serialKey = 'ucritterFlashSerial';
@@ -111,6 +166,8 @@
         const previousState = currentState; currentState = STATE.IDLE; currentDevice = null;
         if (dfuUtil?.getDevice()) { console.log("Clearing currentDevice ref."); }
         serial = ''; connectAttempts = 0; sessionStorage.removeItem(stateKey); sessionStorage.removeItem(serialKey);
+        flashContext = { firmwareName: 'default', onComplete: null };
+        hideTimeSetButton();
         console.log(`State cleared (was ${previousState})`); if (dfuUtil && downloadLog) dfuUtil.clearLog(downloadLog); updateUI();
     }
 
@@ -129,7 +186,17 @@
             case STATE.WAITING_STABLE: updateStatus("Stage 2 Connected. Stabilizing...", "info"); buttonText = "Stabilizing..."; buttonDisabled = true; if (dfuUtil) dfuUtil.logInfo("Stabilizing..."); break;
             case STATE.PROMPT_REFRESH_2: updateStatus("Stage 2 Ready! REFRESH PAGE AGAIN.", "prompt"); buttonText = "REFRESH PAGE AGAIN"; buttonDisabled = true; if (dfuUtil) dfuUtil.logSuccess("Ready for final refresh."); break;
             case STATE.FLASHING: updateStatus("Flashing Firmware... Do not disconnect!", "info"); buttonText = "Flashing..."; buttonDisabled = true; if (dfuUtil) dfuUtil.logInfo("Starting flash..."); break;
-            case STATE.FLASH_COMPLETE: updateStatus("Pupdate Complete! Critter rebooting.", "success"); buttonText = "Done!"; buttonDisabled = true; if (dfuUtil) dfuUtil.logSuccess("Flashed successfully!"); setTimeout(clearState, 6000); break;
+            case STATE.FLASH_COMPLETE:
+                updateStatus("Pupdate Complete! Critter rebooting.", "success"); buttonText = "Done!"; buttonDisabled = true;
+                if (dfuUtil) dfuUtil.logSuccess("Flashed successfully!");
+                if (flashContext.onComplete) {
+                    setTimeout(() => { flashContext.onComplete(); flashContext = { firmwareName: 'default', onComplete: null }; }, 3000);
+                } else {
+                    // Standard flow: show time-set button, then clear
+                    showTimeSetButton();
+                    setTimeout(clearState, 10000);
+                }
+                break;
             case STATE.ERROR: buttonText = "Error Occurred - Reset?"; buttonDisabled = false; break;
             default: updateStatus("Unknown state", "error"); buttonText = "Error"; buttonDisabled = true;
         }
@@ -176,7 +243,7 @@
 
     async function runFlashWorkflow() {
           if (!currentDevice) { handleError(new Error("No device for flash."), "Device not connected."); return; } if (currentState !== STATE.FLASHING) { console.warn("Wrong state for flash:", currentState); return; } if (!dfuUtil) { handleError(new Error("dfuUtil missing."), "Internal error."); return; }
-          const firmware = dfuUtil.getFirmwareFile(); if (!firmware) { handleError(new Error("FW missing."), "Firmware missing!"); return; }
+          const firmware = dfuUtil.getFirmwareFile(flashContext.firmwareName || 'default'); if (!firmware) { handleError(new Error("FW missing."), "Firmware missing!"); return; }
           const transferSize = currentDevice.properties?.TransferSize ?? 1024; const manifestationTolerant = currentDevice.properties?.ManifestationTolerant ?? true;
           dfuUtil.logInfo(`Starting flash (${firmware.byteLength}B)...`); dfuUtil.logInfo(`Using Size:${transferSize}, Manifest:${manifestationTolerant}`);
           try { if (downloadLog) dfuUtil.clearLog(downloadLog); dfuUtil.logInfo("Sending firmware..."); await currentDevice.do_download(transferSize, firmware, manifestationTolerant); dfuUtil.logSuccess("Download complete."); saveState(STATE.FLASH_COMPLETE); }
@@ -333,6 +400,92 @@
         }
     }
 
+    // --- Mode Switching ---
+    function switchMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-tab').forEach(t => {
+            t.classList.toggle('active', t.dataset.mode === mode);
+        });
+        const flashSection = document.getElementById('flashSection');
+        const bootloaderSection = document.getElementById('bootloaderSection');
+        if (flashSection) flashSection.hidden = (mode !== 'standard');
+        if (bootloaderSection) bootloaderSection.hidden = (mode !== 'bootloader');
+
+        // Lazy-load bootloader firmware on first switch
+        if (mode === 'bootloader' && !blFirmwareLoaded && dfuUtil) {
+            const blBtn1 = document.getElementById('bl-connect-step1');
+            dfuUtil.loadFirmware("zephyr-bl-update.signed.bin", "bootloader")
+                .then(() => {
+                    blFirmwareLoaded = true;
+                    if (blBtn1) { blBtn1.disabled = false; }
+                    const status1 = document.getElementById('bl-status-step1');
+                    if (status1) { status1.textContent = 'Ready'; status1.className = 'status status-info'; }
+                    console.log("Bootloader firmware loaded.");
+                })
+                .catch(err => {
+                    console.error("Failed to load bootloader firmware:", err);
+                    const status1 = document.getElementById('bl-status-step1');
+                    if (status1) { status1.textContent = 'Firmware not available'; status1.className = 'status status-error'; }
+                });
+        }
+
+        // Restore bootloader wizard step from session
+        if (mode === 'bootloader') {
+            const savedStep = parseInt(sessionStorage.getItem('blWizardStep') || '1', 10);
+            if (savedStep > 1 && savedStep <= 3) {
+                for (let s = 1; s < savedStep; s++) advanceBootloaderStep(s + 1, true);
+            }
+        }
+    }
+
+    // --- Bootloader Wizard ---
+    function advanceBootloaderStep(step, restoring = false) {
+        bootloaderStep = step;
+        if (!restoring) sessionStorage.setItem('blWizardStep', String(step));
+
+        document.querySelectorAll('.bl-step').forEach(el => {
+            const s = parseInt(el.dataset.blStep, 10);
+            el.classList.remove('active', 'completed');
+            if (s < step) el.classList.add('completed');
+            else if (s === step) el.classList.add('active');
+        });
+
+        // Enable step 3 button when advancing to it
+        if (step === 3) {
+            const btn3 = document.getElementById('bl-connect-step3');
+            const status3 = document.getElementById('bl-status-step3');
+            if (btn3 && firmwareLoaded) btn3.disabled = false;
+            if (status3) { status3.textContent = 'Ready'; status3.className = 'status status-info'; }
+        }
+
+        if (step === 'done' || step > 3) {
+            sessionStorage.removeItem('blWizardStep');
+            document.querySelectorAll('.bl-step').forEach(el => {
+                el.classList.remove('active');
+                el.classList.add('completed');
+            });
+            const blLog = document.getElementById('bootloaderLog');
+            if (blLog) {
+                let p = document.createElement('p');
+                p.className = 'success';
+                p.textContent = '✅ Bootloader update complete! Your device is now running the latest bootloader and firmware.';
+                blLog.appendChild(p);
+            }
+        }
+    }
+
+    // --- Time Set UI ---
+    function showTimeSetButton() {
+        if (!webSerial.supported) return;
+        const area = document.getElementById('timeSetArea');
+        if (area) area.hidden = false;
+    }
+
+    function hideTimeSetButton() {
+        const area = document.getElementById('timeSetArea');
+        if (area) area.hidden = true;
+    }
+
     // --- Initialization Function ---
     function initializePage() {
          console.log("Initializing μCritter Pupdate Page...");
@@ -375,7 +528,7 @@
 
         updateUI();
 
-        dfuUtil.loadFirmware("zephyr.signed.bin")
+        dfuUtil.loadFirmware("zephyr.signed.bin", "default")
             .then(() => { firmwareLoaded = true; dfuUtil.logInfo("Firmware loaded."); updateUI(); })
             .catch(err => { firmwareLoaded = false; handleError(err, `FW load failed: ${err.message}. Refresh.`); });
 
@@ -431,6 +584,143 @@
         osButtons.forEach(btn => {
             btn.addEventListener('click', (e) => { const os = e.target.dataset.os; if (os) { switchOS(os); } });
         });
+
+        // --- Setup Update Mode Tabs ---
+        document.querySelectorAll('.mode-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const mode = tab.dataset.mode;
+                if (mode) switchMode(mode);
+            });
+        });
+
+        // --- Setup WebSerial DFU Trigger ---
+        const serialDfuBtn = document.getElementById('serialDfuTrigger');
+        const serialDfuStatusSpan = document.getElementById('serialDfuStatus');
+        if (serialDfuBtn) {
+            if (!webSerial.supported) {
+                serialDfuBtn.disabled = true;
+                serialDfuBtn.textContent = 'USB Serial not supported in this browser';
+            } else {
+                serialDfuBtn.addEventListener('click', async () => {
+                    serialDfuBtn.disabled = true;
+                    if (serialDfuStatusSpan) {
+                        serialDfuStatusSpan.style.display = 'inline-block';
+                        serialDfuStatusSpan.textContent = 'Sending DFU command...';
+                        serialDfuStatusSpan.className = 'status status-info';
+                    }
+                    try {
+                        await webSerial.triggerDfu();
+                        if (serialDfuStatusSpan) {
+                            serialDfuStatusSpan.textContent = 'Sent! Device rebooting into bootloader...';
+                            serialDfuStatusSpan.className = 'status status-success';
+                        }
+                        setTimeout(() => {
+                            if (serialDfuStatusSpan) {
+                                serialDfuStatusSpan.textContent = 'Bootloader mode ready — proceed with Flash!';
+                            }
+                            serialDfuBtn.disabled = false;
+                        }, 4000);
+                    } catch (e) {
+                        if (serialDfuStatusSpan) {
+                            if (e.name === 'NotFoundError') {
+                                serialDfuStatusSpan.textContent = 'No device selected.';
+                            } else {
+                                serialDfuStatusSpan.textContent = `Error: ${e.message}`;
+                            }
+                            serialDfuStatusSpan.className = 'status status-error';
+                        }
+                        serialDfuBtn.disabled = false;
+                    }
+                });
+            }
+        }
+
+        // --- Setup Bootloader Wizard Buttons ---
+        const blBtn1 = document.getElementById('bl-connect-step1');
+        const blBtn2 = document.getElementById('bl-confirm-step2');
+        const blBtn3 = document.getElementById('bl-connect-step3');
+        const blLog = document.getElementById('bootloaderLog');
+
+        if (blBtn1) {
+            blBtn1.addEventListener('click', () => {
+                if (!blFirmwareLoaded) return;
+                // Switch log context to bootloader log
+                if (blLog && dfuUtil) dfuUtil.setLogContext(blLog);
+                flashContext = {
+                    firmwareName: 'bootloader',
+                    onComplete: () => {
+                        advanceBootloaderStep(2);
+                        // Restore log context
+                        if (downloadLog && dfuUtil) dfuUtil.setLogContext(downloadLog);
+                    }
+                };
+                clearState();
+                handleConnectClick();
+            });
+        }
+
+        if (blBtn2) {
+            blBtn2.addEventListener('click', () => {
+                advanceBootloaderStep(3);
+            });
+        }
+
+        if (blBtn3) {
+            blBtn3.addEventListener('click', () => {
+                if (!firmwareLoaded) return;
+                // Switch log context to bootloader log
+                if (blLog && dfuUtil) dfuUtil.setLogContext(blLog);
+                flashContext = {
+                    firmwareName: 'default', // standard firmware
+                    onComplete: () => {
+                        advanceBootloaderStep('done');
+                        showTimeSetButton();
+                        // Restore log context
+                        if (downloadLog && dfuUtil) dfuUtil.setLogContext(downloadLog);
+                        setTimeout(clearState, 10000);
+                    }
+                };
+                clearState();
+                handleConnectClick();
+            });
+        }
+
+        // --- Setup Time Set Button ---
+        const timeSetBtn = document.getElementById('timeSetBtn');
+        const timeSetStatus = document.getElementById('timeSetStatus');
+        if (timeSetBtn) {
+            if (!webSerial.supported) {
+                timeSetBtn.style.display = 'none';
+            } else {
+                timeSetBtn.addEventListener('click', async () => {
+                    timeSetBtn.disabled = true;
+                    if (timeSetStatus) {
+                        timeSetStatus.style.display = 'inline-block';
+                        timeSetStatus.textContent = 'Connecting to device...';
+                        timeSetStatus.className = 'status status-info';
+                    }
+                    try {
+                        const timeStr = await webSerial.setTime();
+                        if (timeSetStatus) {
+                            timeSetStatus.textContent = `Clock set to ${timeStr}`;
+                            timeSetStatus.className = 'status status-success';
+                        }
+                        if (dfuUtil) dfuUtil.logSuccess(`Device time set to ${timeStr}`);
+                    } catch (e) {
+                        if (timeSetStatus) {
+                            if (e.name === 'NotFoundError') {
+                                timeSetStatus.textContent = 'No device selected.';
+                            } else {
+                                timeSetStatus.textContent = `Error: ${e.message}`;
+                            }
+                            timeSetStatus.className = 'status status-error';
+                        }
+                    } finally {
+                        timeSetBtn.disabled = false;
+                    }
+                });
+            }
+        }
 
         // Schedule auto-connect sequence check
         console.log("Scheduling auto-connect...");

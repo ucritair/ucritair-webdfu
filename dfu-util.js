@@ -110,19 +110,19 @@ var dfuUtil = (function() { // Keep IIFE but expose functions
         device = dfuDevice; console.log("Device connection established:", device); return device;
     }
 
-    // --- Firmware Loading ---
-    let firmwareFile = null;
-    function loadFirmware(url = "zephyr.signed.bin") {
+    // --- Firmware Loading (named slots) ---
+    let firmwareFiles = {};
+    function loadFirmware(url = "zephyr.signed.bin", name = "default") {
         return new Promise((resolve, reject) => {
             let fr = new FileReader();
-            fr.onloadend = () => { if (fr.result?.byteLength > 0) { firmwareFile = fr.result; console.log(`FW loaded (${firmwareFile.byteLength} bytes)`); resolve(firmwareFile); } else { console.error("FW error: Empty content."); firmwareFile = null; reject(new Error("Failed read FW: Empty")); } };
-            fr.onerror = (err) => { console.error("FW read error:", err); firmwareFile = null; reject(new Error(`Failed read FW: ${err}`)); };
-            console.log("Fetching firmware from:", url); fetch(url)
+            fr.onloadend = () => { if (fr.result?.byteLength > 0) { firmwareFiles[name] = fr.result; console.log(`FW '${name}' loaded (${fr.result.byteLength} bytes)`); resolve(fr.result); } else { console.error("FW error: Empty content."); reject(new Error("Failed read FW: Empty")); } };
+            fr.onerror = (err) => { console.error("FW read error:", err); reject(new Error(`Failed read FW: ${err}`)); };
+            console.log(`Fetching firmware '${name}' from:`, url); fetch(url)
                 .then(resp => { if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching ${url}`); if (resp.headers.get("content-length") === "0") throw new Error("FW empty (Content-Length 0)."); return resp.blob(); })
                 .then(blob => { if (blob.size === 0) throw new Error("Fetched FW blob empty."); fr.readAsArrayBuffer(blob); })
-                .catch(error => { console.error("Fetch FW error:", error); firmwareFile = null; reject(error); }); });
+                .catch(error => { console.error("Fetch FW error:", error); reject(error); }); });
     }
-    function getFirmwareFile() { return firmwareFile; }
+    function getFirmwareFile(name = "default") { return firmwareFiles[name] || null; }
 
     // --- Initialize Basic Listeners ---
      function init() {
