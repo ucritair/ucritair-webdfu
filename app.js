@@ -276,6 +276,21 @@
         if ([STATE.CONNECTING_STAGE1, STATE.WAITING_DISCONNECT, STATE.CONNECTING_STAGE2, STATE.WAITING_STABLE, STATE.CONNECTING_FLASH, STATE.FLASHING, STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, STATE.FLASH_COMPLETE].includes(currentState)) { console.warn(`Click ignored in state: ${currentState}.`); return; }
         if (currentState === STATE.IDLE && !firmwareLoaded) { updateStatus("FW loading...", "info"); return; } if (!dfuUtil) { handleError(new Error("DFU Util missing."), "Init error."); return; }
 
+        // In IDLE state, try to trigger DFU mode via WebSerial first (if not already called by bootloader wizard)
+        if (currentState === STATE.IDLE && webSerial.supported && !handleConnectClick._skipDfuTrigger) {
+            updateStatus("Select your device's serial port...", "info");
+            try {
+                await webSerial.triggerDfu();
+                updateStatus("DFU command sent! Waiting for reboot...", "info");
+                if (dfuUtil) dfuUtil.logInfo("DFU trigger sent via WebSerial. Waiting for reboot...");
+                await new Promise(r => setTimeout(r, 4000));
+            } catch (e) {
+                // User cancelled or serial failed — proceed anyway, device may already be in bootloader
+                if (dfuUtil) dfuUtil.logInfo("Serial DFU trigger skipped, proceeding with connection...");
+            }
+        }
+        handleConnectClick._skipDfuTrigger = false;
+
         if (currentState === STATE.IDLE) {
              connectAttempts = 0; saveState(STATE.CONNECTING_STAGE1); if (downloadLog) dfuUtil.clearLog(downloadLog); dfuUtil.logInfo("Starting connection process...");
              try {
@@ -718,6 +733,7 @@
                         if (downloadLog && dfuUtil) dfuUtil.setLogContext(downloadLog);
                     }
                 };
+                handleConnectClick._skipDfuTrigger = true; // user already in bootloader for step 1
                 handleConnectClick();
             });
         }
@@ -768,6 +784,7 @@
                         setTimeout(clearState, 10000);
                     }
                 };
+                handleConnectClick._skipDfuTrigger = true; // already triggered above
                 handleConnectClick();
             });
         }

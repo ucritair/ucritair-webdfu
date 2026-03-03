@@ -53,16 +53,16 @@ a:hover { text-decoration: underline; }
 /* Heading styling */
 h1, h2, h3, h4 { font-weight: 700; color: var(--ucritter-text); line-height: 1.2; }
 h1 { font-size: 3.2rem; margin-bottom: 0.5rem; color: var(--ucritter-primary); }
-h2 { font-size: 2.4rem; margin-top: 3rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--ucritter-border); padding-bottom: 0.5rem;}
+h2 { font-size: 2.4rem; margin-top: 1.5rem; margin-bottom: 1rem; border-bottom: 1px solid var(--ucritter-border); padding-bottom: 0.5rem;}
 h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucritter-primary); }
 
 /* ---------- Hero Section ---------- */
 .hero {
   text-align: center;
-  padding: 3rem 1rem 3rem; /* Keep default padding */
+  padding: 1.5rem 1rem 1.2rem;
   background-color: var(--ucritter-card-bg);
   border-bottom: 1px solid var(--ucritter-border);
-  margin-bottom: 2rem; /* Keep default margin */
+  margin-bottom: 1.2rem;
 }
 .hero .tagline {
   font-size: 1.8rem;
@@ -78,8 +78,8 @@ h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucri
     border-left: 4px solid var(--ucritter-error); /* Keep prominent left border */
     color: #c62828; /* Darker red text */
     border-radius: 12px;
-    padding: 2.5rem 2rem; /* Keep default padding */
-    margin-bottom: 2.5rem; /* Keep default margin */
+    padding: 1.2rem 1.5rem;
+    margin-bottom: 1.5rem;
     box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 #readFirstWarning strong { color: var(--ucritter-error); }
@@ -97,7 +97,7 @@ h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucri
 .layout-wrapper {
   display: flex;
   flex-wrap: wrap; /* Allow columns to wrap on smaller screens */
-  gap: 2.5rem;     /* Space between columns */
+  gap: 1.5rem;     /* Space between columns */
   align-items: flex-start; /* Align items to the top */
 }
 
@@ -131,15 +131,15 @@ h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucri
   background: var(--ucritter-card-bg);
   border: 1px solid var(--ucritter-border);
   border-radius: 12px;
-  padding: 2.5rem 2rem;
-  margin-bottom: 2.5rem;
+  padding: 1.5rem 1.5rem;
+  margin-bottom: 1.5rem;
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 .card h2 {
   margin-top: 0;
   border: none;
   padding-bottom: 0;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
   text-align: center;
 }
 
@@ -150,8 +150,8 @@ h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucri
 #flashSection h2 { text-align: center; }
 /* Reduce top margin for first paragraph on smaller screens */
 #flashSection > p:first-of-type {
-    margin-top: 1rem;
-    margin-bottom: 1.5rem; /* Default bottom margin */
+    margin-top: 0.5rem;
+    margin-bottom: 1rem;
 }
 
 /* Connect Button */
@@ -210,7 +210,7 @@ fieldset {
   border: 1px solid var(--ucritter-border);
   border-radius: 8px;
   padding: 1.5rem;
-  margin-top: 2rem;
+  margin-top: 1rem;
 }
 legend {
   font-weight: 700;
