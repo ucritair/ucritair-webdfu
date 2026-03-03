@@ -305,6 +305,7 @@
                   else if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); clearState(); }
                   else if (error.message?.includes("No matching device found")) { handleError(error, "Connect failed: No matching device."); clearState(); }
                   else if (error instanceof NeedsUserGestureError) { dfuUtil.logWarning("Gesture needed unexpectedly."); clearState(); }
+                  else if (error.message?.includes("no DFU interfaces")) { handleError(error, "Device is not in bootloader mode. Your firmware may be too old for automatic DFU trigger — use the Bootloader Update tab or enter bootloader manually (see instructions)."); if (currentDevice) { try { await currentDevice.close(); } catch(e){} currentDevice = null; } clearState(); }
                   else if (error.message?.includes("Incorrect device connected") || error.message?.includes("Unexpected PID")) { handleError(error, `Wrong device/mode: ${error.message}. Use Bootloader.`); if (currentDevice) { try { await currentDevice.close(); } catch(e){} currentDevice = null; } clearState(); }
                   else { handleError(error, `Connection Error: ${error.message || error}`); }
                   if (currentDevice && !error.message?.includes("device connected")) { try { await currentDevice.close(); } catch(e){} currentDevice = null; }
