@@ -91,6 +91,11 @@
                         <p><strong>Advanced Users Only!</strong> This multi-step process updates your device's bootloader. Only do this if instructed by the uCritter team.</p>
                     </div>
 
+                    <fieldset>
+                        <legend>Bootloader Update Progress</legend>
+                        <div class="log" id="bootloaderLog">Waiting...</div>
+                    </fieldset>
+
                     <div id="bl-step-tracker">
                         <div class="bl-step active" data-bl-step="1">
                             <h3>Step 1: Flash Bootloader Firmware</h3>
@@ -118,11 +123,6 @@
                             </p>
                         </div>
                     </div>
-
-                    <fieldset>
-                        <legend>Bootloader Update Progress</legend>
-                        <div class="log" id="bootloaderLog">Waiting...</div>
-                    </fieldset>
                 </section>
 
                 <section id="deviceTools" class="card" hidden>
