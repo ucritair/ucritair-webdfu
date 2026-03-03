@@ -676,15 +676,36 @@ var dfu = {};
             bytes_sent += chunk_size; this.logProgress(bytes_sent, expected_size);
         }
 
-        // Final phase: Send Zero-Length Packet (ZLP) to signal end of data
+        // Final phase: Send Zero-Length Packet (ZLP) to signal end of data.
+        // All firmware bytes have been sent and acknowledged at this point.
+        // MCUboot devices often reboot immediately, causing transfer errors here — that's success.
         this.logDebug("Sending Zero-Length Packet (ZLP) to finalize download...");
         try {
-            let dfu_status; await this.download(new ArrayBuffer(0), transaction++);
-             if (manifestationTolerant) { this.logInfo("Polling for dfuIDLE (manifestation tolerant)..."); dfu_status = await this.poll_until(state => (state == dfu.dfuIDLE || state == dfu.dfuMANIFEST_WAIT_RESET || state == dfu.dfuMANIFEST_SYNC)); }
-             else { this.logInfo("Polling for dfuMANIFEST_SYNC (manifestation not tolerant)..."); dfu_status = await this.poll_until(state => (state == dfu.dfuMANIFEST_SYNC || state == dfu.dfuMANIFEST_WAIT_RESET)); }
+            await this.download(new ArrayBuffer(0), transaction++);
+        } catch (zlpSendError) {
+            const errMsg = String(zlpSendError).toLowerCase();
+            if (errMsg.includes('transfer error') || errMsg.includes('networkerror') || errMsg.includes('device was disconnected')) {
+                this.logWarning("Device rebooted during ZLP send (firmware was fully sent).");
+                this.logSuccess(`Wrote ${bytes_sent} bytes`);
+                return;
+            }
+            throw new Error(`Error sending ZLP: ${zlpSendError}`);
+        }
+        try {
+            let dfu_status;
+            if (manifestationTolerant) { this.logInfo("Polling for dfuIDLE (manifestation tolerant)..."); dfu_status = await this.poll_until(state => (state == dfu.dfuIDLE || state == dfu.dfuMANIFEST_WAIT_RESET || state == dfu.dfuMANIFEST_SYNC)); }
+            else { this.logInfo("Polling for dfuMANIFEST_SYNC (manifestation not tolerant)..."); dfu_status = await this.poll_until(state => (state == dfu.dfuMANIFEST_SYNC || state == dfu.dfuMANIFEST_WAIT_RESET)); }
             this.logDebug(`Status after ZLP poll: state=${dfu_status.state}, status=${dfu_status.status}`);
             if (dfu_status.status != dfu.STATUS_OK) { this.logError(`DFU ZLP/Manifest phase failed: State=${dfu_status.state}, Status=${dfu_status.status}`); throw `DFU ZLP/Manifest phase failed state=${dfu_status.state}, status=${dfu_status.status}`; }
-        } catch (error) { throw `Error during final DFU download phase (ZLP): ${error}`; }
+        } catch (pollError) {
+            const errMsg = String(pollError).toLowerCase();
+            if (errMsg.includes('transfer error') || errMsg.includes('networkerror') || errMsg.includes('controltransferin failed') || errMsg.includes('device was disconnected')) {
+                this.logWarning("Device rebooted during manifestation (firmware was fully sent).");
+                this.logSuccess(`Wrote ${bytes_sent} bytes`);
+                return;
+            }
+            throw new Error(`Error during final DFU download phase (ZLP): ${pollError}`);
+        }
 
         this.logSuccess(`Wrote ${bytes_sent} bytes`);
         this.logInfo("Manifesting new firmware (via reset)...");

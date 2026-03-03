@@ -259,8 +259,9 @@
               // Device often reboots immediately after flash, causing the final
               // ZLP (Zero Length Packet) status check to fail with a transfer error.
               // This is expected MCUboot behavior — the firmware was already sent.
-              const msg = (error.message || '').toLowerCase();
-              if (msg.includes('zlp') || msg.includes('transfer error') || msg.includes('controlTransferIn failed'.toLowerCase())) {
+              // Note: error may be a string (not Error object), so use String() as fallback.
+              const msg = (error?.message || String(error) || '').toLowerCase();
+              if (msg.includes('zlp') || msg.includes('transfer error') || msg.includes('controltransferin failed')) {
                   dfuUtil.logWarning("Device rebooted after flash (this is normal).");
                   dfuUtil.logSuccess("Firmware sent successfully!");
                   saveState(STATE.FLASH_COMPLETE);
@@ -542,7 +543,9 @@
 
         dfuUtil.setOnDisconnectCallback((reason) => {
             console.log("Disconnect detected.", "Reason:", reason, "State:", currentState);
-             if ( ![STATE.IDLE, STATE.ERROR, STATE.FLASH_COMPLETE, STATE.WAITING_DISCONNECT, STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, STATE.PROMPT_CONNECT_STAGE2, STATE.PROMPT_CONNECT_FLASH].includes(currentState) ) {
+             // During FLASHING, runFlashWorkflow() is the authority — it handles errors
+             // (including expected device reboots). Don't race it with the disconnect callback.
+             if ( ![STATE.IDLE, STATE.ERROR, STATE.FLASH_COMPLETE, STATE.FLASHING, STATE.WAITING_DISCONNECT, STATE.PROMPT_REFRESH_1, STATE.PROMPT_REFRESH_2, STATE.PROMPT_CONNECT_STAGE2, STATE.PROMPT_CONNECT_FLASH].includes(currentState) ) {
                   if (currentDevice) { handleError(new Error("Device disconnected."), "Device Disconnected!"); currentDevice = null; } else { dfuUtil.logWarning("Disconnect event for cleared ref."); }
              } else if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logInfo("Disconnected as expected."); currentDevice = null; }
              else { dfuUtil.logInfo(`Disconnected in state: ${currentState}`); currentDevice = null; } updateUI(); });
