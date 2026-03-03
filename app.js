@@ -729,8 +729,30 @@
         }
 
         if (blBtn3) {
-            blBtn3.addEventListener('click', () => {
+            const status3 = document.getElementById('bl-status-step3');
+            blBtn3.addEventListener('click', async () => {
                 if (!firmwareLoaded) return;
+                blBtn3.disabled = true;
+
+                // Trigger DFU mode via WebSerial if available
+                if (webSerial.supported) {
+                    if (status3) { status3.textContent = 'Select your device\'s serial port...'; status3.className = 'status status-info'; status3.style.display = ''; }
+                    try {
+                        await webSerial.triggerDfu();
+                        if (status3) { status3.textContent = 'DFU command sent! Waiting for reboot...'; status3.className = 'status status-success'; }
+                        // Wait for device to reboot into bootloader mode
+                        await new Promise(r => setTimeout(r, 4000));
+                    } catch (e) {
+                        if (e.name === 'NotFoundError') {
+                            if (status3) { status3.textContent = 'No port selected. Try again or enter bootloader manually.'; status3.className = 'status status-error'; }
+                        } else {
+                            if (status3) { status3.textContent = `Serial error: ${e.message}. Try entering bootloader manually.`; status3.className = 'status status-error'; }
+                        }
+                        blBtn3.disabled = false;
+                        return;
+                    }
+                }
+
                 // Switch log context to bootloader log
                 if (blLog && dfuUtil) dfuUtil.setLogContext(blLog);
                 clearState();
@@ -782,6 +804,42 @@
                         }
                     } finally {
                         timeSetBtn.disabled = false;
+                    }
+                });
+            }
+        }
+
+        // --- Standalone Time Set Button ---
+        const standaloneTimeSetBtn = document.getElementById('standaloneTimeSetBtn');
+        const standaloneTimeSetStatus = document.getElementById('standaloneTimeSetStatus');
+        const deviceToolsSection = document.getElementById('deviceTools');
+        if (webSerial.supported && deviceToolsSection) {
+            deviceToolsSection.hidden = false;
+            if (standaloneTimeSetBtn) {
+                standaloneTimeSetBtn.addEventListener('click', async () => {
+                    standaloneTimeSetBtn.disabled = true;
+                    if (standaloneTimeSetStatus) {
+                        standaloneTimeSetStatus.style.display = 'inline-block';
+                        standaloneTimeSetStatus.textContent = 'Connecting to device...';
+                        standaloneTimeSetStatus.className = 'status status-info';
+                    }
+                    try {
+                        const timeStr = await webSerial.setTime();
+                        if (standaloneTimeSetStatus) {
+                            standaloneTimeSetStatus.textContent = `Clock set to ${timeStr}`;
+                            standaloneTimeSetStatus.className = 'status status-success';
+                        }
+                    } catch (e) {
+                        if (standaloneTimeSetStatus) {
+                            if (e.name === 'NotFoundError') {
+                                standaloneTimeSetStatus.textContent = 'No device selected.';
+                            } else {
+                                standaloneTimeSetStatus.textContent = `Error: ${e.message}`;
+                            }
+                            standaloneTimeSetStatus.className = 'status status-error';
+                        }
+                    } finally {
+                        standaloneTimeSetBtn.disabled = false;
                     }
                 });
             }

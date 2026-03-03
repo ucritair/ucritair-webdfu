@@ -111,7 +111,7 @@
 
                         <div class="bl-step" data-bl-step="3">
                             <h3>Step 3: Flash Standard Firmware</h3>
-                            <p>Now get your Critter back into bootloader mode and flash the regular firmware to replace the bootloader-update build.</p>
+                            <p>Click below to put your device back into bootloader mode via USB and flash the standard firmware.</p>
                             <p>
                                 <button id="bl-connect-step3" disabled>Flash Standard Firmware</button>
                                 <span id="bl-status-step3" class="status status-info">Waiting for Step 2...</span>
@@ -136,6 +136,14 @@
                      <p style="margin-top: 1.5em; text-align: center;">
                         <a href="CHANGELOG.MD" target="_blank">View Previous Changes</a>
                      </p>
+                </section>
+
+                <section id="deviceTools" class="card" hidden>
+                    <h2>Device Tools</h2>
+                    <p style="text-align: center;">
+                        <button id="standaloneTimeSetBtn" class="serial-trigger-btn">Set Device Clock</button>
+                        <span id="standaloneTimeSetStatus" class="status status-info" style="display:none;"></span>
+                    </p>
                 </section> </div> <div class="column instructions-column">
                 <div class="os-toggle card">
                     <span>Show Instructions For:</span>
