@@ -103,6 +103,7 @@
     // --- Session Storage Keys (using const for keys) ---
     const stateKey = 'ucritterFlashState';
     const serialKey = 'ucritterFlashSerial';
+    const modeKey = 'ucritterFlashMode';
 
     // --- Custom Error for User Gesture Requirement ---
     class NeedsUserGestureError extends Error {
@@ -169,6 +170,11 @@
         if (dfuUtil?.getDevice()) { console.log("Clearing currentDevice ref."); }
         serial = ''; connectAttempts = 0; sessionStorage.removeItem(stateKey); sessionStorage.removeItem(serialKey);
         flashContext = { firmwareName: 'default', onComplete: null };
+        // Preserve mode key if bootloader wizard is actively in progress (step > 1)
+        const blStep = sessionStorage.getItem('blWizardStep');
+        if (!blStep || blStep === '1') {
+            sessionStorage.removeItem(modeKey);
+        }
         hideTimeSetButton();
         console.log(`State cleared (was ${previousState})`); if (dfuUtil && downloadLog) dfuUtil.clearLog(downloadLog); updateUI();
     }
@@ -405,6 +411,7 @@
     // --- Mode Switching ---
     function switchMode(mode) {
         currentMode = mode;
+        sessionStorage.setItem(modeKey, mode);
         document.querySelectorAll('.mode-tab').forEach(t => {
             t.classList.toggle('active', t.dataset.mode === mode);
         });
@@ -528,6 +535,42 @@
              } else if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logInfo("Disconnected as expected."); currentDevice = null; }
              else { dfuUtil.logInfo(`Disconnected in state: ${currentState}`); currentDevice = null; } updateUI(); });
 
+        // --- Restore bootloader mode + flash context across page refreshes ---
+        const savedMode = sessionStorage.getItem(modeKey);
+        if (savedMode === 'bootloader') {
+            switchMode('bootloader');
+            // Reconstruct flashContext if DFU state machine is mid-flow
+            if (currentState !== STATE.IDLE) {
+                const savedStep = parseInt(sessionStorage.getItem('blWizardStep') || '1', 10);
+                const blLog = document.getElementById('bootloaderLog');
+                if (savedStep <= 1) {
+                    // Mid-flow for Step 1: flashing bootloader firmware
+                    flashContext = {
+                        firmwareName: 'bootloader',
+                        onComplete: () => {
+                            advanceBootloaderStep(2);
+                            if (downloadLog && dfuUtil) dfuUtil.setLogContext(downloadLog);
+                        }
+                    };
+                    console.log("Restored flashContext for bootloader Step 1");
+                } else if (savedStep === 3) {
+                    // Mid-flow for Step 3: flashing standard firmware
+                    flashContext = {
+                        firmwareName: 'default',
+                        onComplete: () => {
+                            advanceBootloaderStep('done');
+                            showTimeSetButton();
+                            if (downloadLog && dfuUtil) dfuUtil.setLogContext(downloadLog);
+                            setTimeout(clearState, 10000);
+                        }
+                    };
+                    console.log("Restored flashContext for bootloader Step 3");
+                }
+                // Use bootloader log for DFU output during wizard
+                if (blLog && dfuUtil) dfuUtil.setLogContext(blLog);
+            }
+        }
+
         updateUI();
 
         dfuUtil.loadFirmware("zephyr.signed.bin", "default")
@@ -649,6 +692,9 @@
                 if (!blFirmwareLoaded) return;
                 // Switch log context to bootloader log
                 if (blLog && dfuUtil) dfuUtil.setLogContext(blLog);
+                clearState();
+                // Re-save mode after clearState (which clears it for step 1)
+                sessionStorage.setItem(modeKey, 'bootloader');
                 flashContext = {
                     firmwareName: 'bootloader',
                     onComplete: () => {
@@ -657,7 +703,6 @@
                         if (downloadLog && dfuUtil) dfuUtil.setLogContext(downloadLog);
                     }
                 };
-                clearState();
                 handleConnectClick();
             });
         }
@@ -673,6 +718,9 @@
                 if (!firmwareLoaded) return;
                 // Switch log context to bootloader log
                 if (blLog && dfuUtil) dfuUtil.setLogContext(blLog);
+                clearState();
+                // Re-save mode after clearState
+                sessionStorage.setItem(modeKey, 'bootloader');
                 flashContext = {
                     firmwareName: 'default', // standard firmware
                     onComplete: () => {
@@ -683,7 +731,6 @@
                         setTimeout(clearState, 10000);
                     }
                 };
-                clearState();
                 handleConnectClick();
             });
         }
