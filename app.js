@@ -21,6 +21,7 @@
         CONNECTING_STAGE1: 'connecting_stage1',
         WAITING_DISCONNECT: 'waiting_disconnect',
         PROMPT_REFRESH_1: 'prompt_refresh_1',
+        PROMPT_CONNECT_STAGE1: 'prompt_connect_stage1',
         PROMPT_CONNECT_STAGE2: 'prompt_connect_stage2',
         CONNECTING_STAGE2: 'connecting_stage2',
         WAITING_STABLE: 'waiting_stable',
@@ -234,6 +235,7 @@
             case STATE.CONNECTING_STAGE1: case STATE.CONNECTING_STAGE2: case STATE.CONNECTING_FLASH: updateStatus(`Connecting (${currentState})... Check pop-up!`, "info"); buttonText = "Connecting..."; buttonDisabled = true; break;
             case STATE.WAITING_DISCONNECT: updateStatus("Stage 1 Connected. Switching...", "info"); buttonText = "Switching..."; buttonDisabled = true; if (dfuUtil) dfuUtil.logInfo("Attempting detach..."); break;
             case STATE.PROMPT_REFRESH_1: updateStatus("Stage 1 Done! REFRESH PAGE NOW.", "prompt"); buttonText = "REFRESH PAGE NOW"; buttonDisabled = true; if (dfuUtil) dfuUtil.logSuccess("Ready for 1st refresh."); break;
+            case STATE.PROMPT_CONNECT_STAGE1: updateStatus("Bootloader is ready. Click to grant USB access.", "prompt"); buttonText = "Grant USB Access"; buttonDisabled = false; if (dfuUtil) dfuUtil.logWarning("USB access needs a fresh click now that the Critter is in bootloader mode."); break;
             case STATE.PROMPT_CONNECT_STAGE2: updateStatus("Click button for Stage 2 permission.", "prompt"); buttonText = "Connect Stage 2"; buttonDisabled = false; if (dfuUtil) dfuUtil.logWarning("Needs Stage 2 permission."); break;
             case STATE.PROMPT_CONNECT_FLASH: updateStatus("Click button for Flash permission.", "prompt"); buttonText = "Connect to Flash"; buttonDisabled = false; if (dfuUtil) dfuUtil.logWarning("Needs final permission."); break;
             case STATE.WAITING_STABLE: updateStatus("Stage 2 Connected. Stabilizing...", "info"); buttonText = "Stabilizing..."; buttonDisabled = true; if (dfuUtil) dfuUtil.logInfo("Stabilizing..."); break;
@@ -273,6 +275,11 @@
         updateStatus(userMsg, "error"); if (currentState !== STATE.ERROR) { saveState(STATE.ERROR); }
     }
 
+    function isDirectClickPermissionError(error) {
+        const message = (error instanceof Error) ? error.message : String(error);
+        return message.includes("directly from a user click");
+    }
+
     // --- Core Connection and Flashing Logic ---
     async function attemptConnection(attemptVid, attemptSerial, allowRequestPrompt = false) {
           connectAttempts++; if (connectAttempts > MAX_CONNECT_ATTEMPTS) throw new Error(`Max attempts (${MAX_CONNECT_ATTEMPTS})`);
@@ -298,9 +305,50 @@
            } catch(e) {
                console.error("Error during requestDevice or subsequent connect:", e);
                if (e.name === 'NotFoundError') { if (promptFilter?.length > 0) { dfuUtil.logError("Prompt failed: No matching device found."); throw new Error("No matching device found."); } else { throw new Error("No device selected."); } }
-               else if (e.name === 'SecurityError') { throw new Error("Security Error (HTTPS?)."); }
+               else if (e.name === 'SecurityError') {
+                   if (!window.isSecureContext) {
+                       throw new Error("USB access requires HTTPS.");
+                   }
+                   throw new Error("USB permission prompt must be opened directly from a user click.");
+               }
                throw new Error(`Request/connect error: ${e.message || e}`);
            }
+    }
+
+    async function connectInitialDevice(preserveLog = false) {
+        connectAttempts = 0;
+        saveState(STATE.CONNECTING_STAGE1);
+        if (!preserveLog) {
+            dfuUtil.clearLog();
+        }
+        dfuUtil.logInfo(preserveLog ? "Retrying USB connection..." : "Starting connection process...");
+
+        await attemptConnection(vid, null, true);
+        const connectedPid = currentDevice.device_.productId;
+        serial = currentDevice.device_.serialNumber || '';
+        dfuUtil.logInfo(`Connected initial device: PID=0x${connectedPid.toString(16)}, Serial=${serial || 'N/A'}`);
+
+        if (connectedPid === pidStage2) {
+            dfuUtil.logWarning("Device already in Stage 2 (PID 0xFFFF). Skipping detach.");
+            saveState(STATE.PROMPT_CONNECT_STAGE2, serial);
+        } else if (connectedPid === pidStage1) {
+            dfuUtil.logSuccess(`Connected Stage 1: ${currentDevice.device_.productName}`);
+            dfuUtil.logInfo("Detaching...");
+            await new Promise(resolve => setTimeout(resolve, 300));
+            saveState(STATE.WAITING_DISCONNECT, serial);
+            await currentDevice.detach();
+            dfuUtil.logInfo("Detach sent. Waiting disconnect...");
+            await Promise.race([
+                currentDevice.waitDisconnected(5000),
+                new Promise((_, r) => setTimeout(() => r(new Error("Disconnect timeout")), 5000))
+            ]);
+            dfuUtil.logInfo("Disconnected/timeout.");
+            if (currentState === STATE.WAITING_DISCONNECT) {
+                saveState(STATE.PROMPT_REFRESH_1, serial);
+            }
+        } else {
+            throw new Error(`Unexpected PID 0x${connectedPid.toString(16)}.`);
+        }
     }
 
     async function runFlashWorkflow() {
@@ -348,48 +396,49 @@
         }
         handleConnectClick._skipDfuTrigger = false;
 
-        if (currentState === STATE.IDLE) {
-             connectAttempts = 0; saveState(STATE.CONNECTING_STAGE1); dfuUtil.clearLog(); dfuUtil.logInfo("Starting connection process...");
+        if (currentState === STATE.IDLE || currentState === STATE.PROMPT_CONNECT_STAGE1) {
              try {
-                 await attemptConnection(vid, null, true); const connectedPid = currentDevice.device_.productId; serial = currentDevice.device_.serialNumber || '';
-                 dfuUtil.logInfo(`Connected initial device: PID=0x${connectedPid.toString(16)}, Serial=${serial || 'N/A'}`);
-                 if (connectedPid === pidStage2) { dfuUtil.logWarning("Device already in Stage 2 (PID 0xFFFF). Skipping detach."); saveState(STATE.PROMPT_CONNECT_STAGE2, serial); } // Jump state
-                 else if (connectedPid === pidStage1) { dfuUtil.logSuccess(`Connected Stage 1: ${currentDevice.device_.productName}`); dfuUtil.logInfo("Detaching..."); await new Promise(resolve => setTimeout(resolve, 300)); saveState(STATE.WAITING_DISCONNECT, serial); await currentDevice.detach(); dfuUtil.logInfo("Detach sent. Waiting disconnect..."); await Promise.race([ currentDevice.waitDisconnected(5000), new Promise((_, r) => setTimeout(() => r(new Error("Disconnect timeout")), 5000)) ]); dfuUtil.logInfo("Disconnected/timeout."); if (currentState === STATE.WAITING_DISCONNECT) { saveState(STATE.PROMPT_REFRESH_1, serial); } }
-                 else { throw new Error(`Unexpected PID 0x${connectedPid.toString(16)}.`); }
+                 await connectInitialDevice(currentState === STATE.PROMPT_CONNECT_STAGE1);
              } catch (error) {
                   if (error.message?.toLowerCase().includes("stall")) { handleError(error, "Device stalled. Reset & retry."); }
                   else if (error.message?.includes("Disconnect timeout")) { if (currentState === STATE.WAITING_DISCONNECT) { dfuUtil.logWarning("Disconnect timeout, proceeding anyway."); saveState(STATE.PROMPT_REFRESH_1, serial); } else { handleError(error, "Timeout."); } }
                   else if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); clearState(); }
                   else if (error.message?.includes("No matching device found")) { handleError(error, "Connect failed: No matching device."); clearState(); }
                   else if (error instanceof NeedsUserGestureError) { dfuUtil.logWarning("Gesture needed unexpectedly."); clearState(); }
+                  else if (isDirectClickPermissionError(error) && currentState === STATE.CONNECTING_STAGE1) {
+                      dfuUtil.logWarning("USB access needs a fresh click after the reboot into bootloader mode.");
+                      saveState(STATE.PROMPT_CONNECT_STAGE1);
+                  }
                   else if (error.message?.includes("no DFU interfaces")) { handleError(error, "Device is not in bootloader mode. Try the automatic start button again or enter bootloader manually using the instructions on this page."); if (currentDevice) { try { await currentDevice.close(); } catch(e){} currentDevice = null; } clearState(); }
                   else if (error.message?.includes("Incorrect device connected") || error.message?.includes("Unexpected PID")) { handleError(error, `Wrong device/mode: ${error.message}. If you were told to update the bootloader itself, use the dedicated bootloader page.`); if (currentDevice) { try { await currentDevice.close(); } catch(e){} currentDevice = null; } clearState(); }
                   else { handleError(error, `Connection Error: ${error.message || error}`); }
                   if (currentDevice && !error.message?.includes("device connected")) { try { await currentDevice.close(); } catch(e){} currentDevice = null; }
-                  if (![STATE.IDLE, STATE.PROMPT_REFRESH_1, STATE.PROMPT_CONNECT_STAGE2, STATE.ERROR].includes(currentState)) { saveState(STATE.ERROR); }
+                  if (![STATE.IDLE, STATE.PROMPT_CONNECT_STAGE1, STATE.PROMPT_REFRESH_1, STATE.PROMPT_CONNECT_STAGE2, STATE.ERROR].includes(currentState)) { saveState(STATE.ERROR); }
              }
         }
         else if (currentState === STATE.PROMPT_CONNECT_STAGE2) {
               saveState(STATE.CONNECTING_STAGE2, serial); dfuUtil.logInfo("Attempting Stage 2...");
               try {
-                  dfuUtil.logInfo("Waiting before requesting (Stage 2)..."); await new Promise(resolve => setTimeout(resolve, 500)); await attemptConnection(vid, serial, true);
+                  await attemptConnection(vid, serial, true);
                   dfuUtil.logSuccess(`Reconnected Stage 2: ${currentDevice.device_.productName}`); saveState(STATE.WAITING_STABLE, serial); await new Promise(resolve => setTimeout(resolve, 1500));
                   try { dfuUtil.logInfo("Checking status..."); let s = await currentDevice.getStatus(); dfuUtil.logInfo(`Status: S${s.state}, S${s.status}`); if (typeof dfu !== 'undefined' && s.state === dfu.dfuERROR) { dfuUtil.logWarning("Error state, clearing..."); await currentDevice.clearStatus(); dfuUtil.logInfo("Cleared."); } }
                   catch (e) { dfuUtil.logWarning(`Status check failed: ${e}`); } saveState(STATE.PROMPT_REFRESH_2, serial);
               } catch (error) {
                    if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); saveState(STATE.PROMPT_CONNECT_STAGE2); }
                    else if (error.message?.includes("No matching device found")) { handleError(error, "Connect failed: No matching device for Stage 2."); saveState(STATE.PROMPT_CONNECT_STAGE2); }
+                   else if (isDirectClickPermissionError(error)) { dfuUtil.logWarning("Stage 2 permission needs a direct click. Click the button again."); saveState(STATE.PROMPT_CONNECT_STAGE2, serial); }
                    else { handleError(error, `Connect Stage 2 Error: ${error.message || error}`); }
               }
         }
         else if (currentState === STATE.PROMPT_CONNECT_FLASH) {
               saveState(STATE.CONNECTING_FLASH, serial); dfuUtil.logInfo("Attempting final connect...");
               try {
-                   dfuUtil.logInfo("Waiting before requesting (Flash)..."); await new Promise(resolve => setTimeout(resolve, 500)); await attemptConnection(vid, serial, true);
+                   await attemptConnection(vid, serial, true);
                    dfuUtil.logSuccess(`Reconnected for Flash: ${currentDevice.device_.productName}`); saveState(STATE.FLASHING, serial); await runFlashWorkflow();
               } catch (error) {
                    if (error.message?.includes("No device selected")) { dfuUtil.logWarning("Selection cancelled."); saveState(STATE.PROMPT_CONNECT_FLASH); }
                    else if (error.message?.includes("No matching device found")) { handleError(error, "Connect failed: No matching device for Flash."); saveState(STATE.PROMPT_CONNECT_FLASH); }
+                   else if (isDirectClickPermissionError(error)) { dfuUtil.logWarning("Final USB permission needs a direct click. Click the button again."); saveState(STATE.PROMPT_CONNECT_FLASH, serial); }
                    else { handleError(error, `Connect Final Error: ${error.message || error}`); }
               }
          }
