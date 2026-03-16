@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-86E5H2KF56"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-86E5H2KF56');
+    </script>
+    <meta charset="utf-8">
+    <title>μCritter Bootloader Update</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&amp;display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="sakura.css">
+    <link rel="stylesheet" href="pupdate-styles.css">
+
+    <script defer src="dfu.js"></script>
+    <script defer src="dfu-util.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+
+  <body data-page="bootloader">
+    <div class="container">
+      <div id="browserNotice" hidden></div>
+    </div>
+
+    <header class="hero">
+      <div class="hero-actions">
+        <a class="secondary-page-link" href="index.html">Back to Standard Update</a>
+      </div>
+      <h1>μCritter Bootloader Update</h1>
+      <p class="tagline">Advanced recovery page for the bootloader firmware only. Use this page only if the uCritter team told you to.</p>
+    </header>
+
+    <div class="container">
+      <div id="readFirstWarning" class="note-box read-first-warning">
+        <p><strong>Advanced Users Only.</strong> This flow updates the bootloader itself. Most users should return to the standard update page instead.</p>
+        <p class="note-top-spacing"><strong>Note:</strong> Chrome or another Chromium browser is required. WebUSB is not supported on iPhone or iPad.</p>
+      </div>
+
+      <div class="layout-wrapper">
+        <div class="column flash-column">
+          <section id="bootloaderSection" class="card">
+            <h2>Bootloader Update</h2>
+            <div class="note-box danger-note-box">
+              <p><strong>Use this only when instructed.</strong> The standard update flow now lives on <a href="index.html">its own page</a> so it stays isolated from this recovery path.</p>
+            </div>
+
+            <fieldset>
+              <legend>Bootloader Update Progress</legend>
+              <div class="log" id="bootloaderLog">Waiting...</div>
+            </fieldset>
+
+            <div id="bl-step-tracker">
+              <div class="bl-step active" data-bl-step="1">
+                <h3>Step 1: Flash Bootloader Firmware</h3>
+                <p>This special firmware packages the bootloader update image. Put your Critter into bootloader mode first, then flash this stage.</p>
+                <p>
+                  <button id="bl-connect-step1" type="button" disabled>Flash Bootloader Firmware</button>
+                  <span id="bl-status-step1" class="status status-info">Loading firmware...</span>
+                </p>
+              </div>
+
+              <div class="bl-step" data-bl-step="2">
+                <h3>Step 2: Update Bootloader on Device</h3>
+                <p>After the device reboots from Step 1, use the on-device menu:</p>
+                <p class="centered-row"><code>Settings &gt; DEVELOPER &gt; UPDATE BOOTLOADER</code></p>
+                <p>Confirm the update on the device itself and wait for the reboot to finish.</p>
+                <p><button id="bl-confirm-step2" type="button">I've Updated the Bootloader</button></p>
+              </div>
+
+              <div class="bl-step" data-bl-step="3">
+                <h3>Step 3: Flash Standard Firmware</h3>
+                <p>This returns the device to the normal firmware. If supported, this page will try the USB serial bootloader trigger for you first.</p>
+                <p>
+                  <button id="bl-connect-step3" type="button" disabled>Flash Standard Firmware</button>
+                  <span id="bl-status-step3" class="status status-info">Waiting for Step 2...</span>
+                </p>
+              </div>
+            </div>
+
+            <div id="timeSetArea" hidden>
+              <p class="time-set-row">
+                <button id="timeSetBtn" type="button" class="serial-trigger-btn">Set Device Clock</button>
+                <span id="timeSetStatus" class="status status-info" style="display:none;"></span>
+              </p>
+            </div>
+          </section>
+
+          <section id="deviceTools" class="card" hidden>
+            <h2>Device Tools</h2>
+            <p class="centered-row">
+              <button id="standaloneTimeSetBtn" type="button" class="serial-trigger-btn">Set Device Clock</button>
+              <span id="standaloneTimeSetStatus" class="status status-info" style="display:none;"></span>
+            </p>
+          </section>
+        </div>
+
+        <div class="column instructions-column">
+          <section class="instructions card">
+            <h2>Before You Start</h2>
+            <div class="note-box">
+              <p><strong>Keep this simple:</strong> this page is only for the bootloader wizard. If you just need the latest normal firmware, go back to <a href="index.html">the standard update page</a>.</p>
+            </div>
+            <ul>
+              <li><strong>Enter bootloader mode manually</strong> with <kbd>Start</kbd> + <kbd>Select</kbd> + <kbd>Down</kbd>, then press reset with a paperclip.</li>
+              <li><strong>Confirm the bootloader screen</strong> shows <strong>~CAT BOOTLOADER MODE~</strong> before Step 1.</li>
+              <li><strong>Leave the device plugged in</strong> whenever the page is actively guiding you through a flash stage.</li>
+            </ul>
+          </section>
+
+          <section class="instructions card">
+            <h2>Step 1 Notes</h2>
+            <p>Step 1 flashes a temporary firmware image that carries the new bootloader update package.</p>
+            <ul>
+              <li>If the browser prompts for permission, choose <code>MCUBOOT</code>.</li>
+              <li>If the device shows up as <code>CAT PROTOTYPE</code>, you are not in bootloader mode yet.</li>
+              <li>If the page asks for a refresh between stages, refresh and stay on this same bootloader page.</li>
+            </ul>
+          </section>
+
+          <section class="instructions card">
+            <h2>Step 2 Notes</h2>
+            <p>The actual bootloader upgrade happens on the device after Step 1 finishes.</p>
+            <ul>
+              <li>Navigate to <code>Settings &gt; DEVELOPER &gt; UPDATE BOOTLOADER</code>.</li>
+              <li>Wait for the update and reboot to finish before clicking the Step 2 confirmation button on this page.</li>
+              <li>If the device stalls or reboots oddly, do not continue into Step 3 until the device is stable again.</li>
+            </ul>
+          </section>
+
+          <section class="instructions card">
+            <h2>Step 3 Notes</h2>
+            <p>Step 3 restores the normal application firmware after the new bootloader is in place.</p>
+            <ul>
+              <li>The page will try the USB serial bootloader handoff first when supported.</li>
+              <li>If that handoff fails, manually re-enter bootloader mode and click the same Step 3 button again.</li>
+              <li>When Step 3 completes, you can set the device clock from the same page.</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <footer class="container">
+      <p>
+        <a href="index.html">← Back to standard updater</a> |
+        <a href="https://docs.ucritter.com">Critter Docs &amp; Guides</a>
+      </p>
+      <p><small>Keep your Critter happy with the latest firmware!</small></p>
+    </footer>
+  </body>
+</html>

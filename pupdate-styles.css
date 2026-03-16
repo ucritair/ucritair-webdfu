@@ -64,6 +64,30 @@ h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucri
   border-bottom: 1px solid var(--ucritter-border);
   margin-bottom: 1.2rem;
 }
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+.secondary-page-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.9rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 126, 63, 0.25);
+  background: rgba(255, 126, 63, 0.08);
+  color: var(--ucritter-primary);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+.secondary-page-link:hover {
+  text-decoration: none;
+  background: rgba(255, 126, 63, 0.14);
+}
+.secondary-page-link.inline-link {
+  padding: 0.9rem 1.6rem;
+}
 .hero .tagline {
   font-size: 1.8rem;
   color: var(--ucritter-light-text);
@@ -148,6 +172,70 @@ h3 { font-size: 1.8rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--ucri
 /* ---------- Flash UI (Card in Left Column) ---------- */
 #flashSection { margin-top: 0; }
 #flashSection h2 { text-align: center; }
+.flow-summary {
+  background: linear-gradient(135deg, #fff8ef, #fff3da);
+  border: 1px solid #ffe1bd;
+  border-radius: 10px;
+  padding: 1.4rem;
+  margin-bottom: 1.5rem;
+}
+.flow-summary p {
+  margin: 0.4rem 0;
+}
+.inline-tool-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.3rem;
+  margin-top: 1.5rem;
+  border: 1px solid var(--ucritter-border);
+  border-radius: 10px;
+  background: #fffaf2;
+}
+.inline-tool-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.8rem;
+}
+.support-copy {
+  margin: 0.4rem 0 0;
+  color: var(--ucritter-light-text);
+  font-size: 1.4rem;
+}
+.secondary-page-card p {
+  text-align: center;
+}
+.note-top-spacing {
+  margin-top: 1em;
+}
+.centered-row {
+  text-align: center;
+}
+.time-set-row {
+  text-align: center;
+  margin-top: 1.5em;
+}
+.version-changes {
+  padding-left: 1.5em;
+  list-style-type: disc;
+}
+.version-link-row {
+  margin-top: 1.5em;
+  text-align: center;
+}
+.bootloader-screen-preview {
+  text-align: center;
+  margin-top: 0.5em;
+}
+.compact-code {
+  font-size: 1.1rem;
+}
+.danger-note-box {
+  background-color: #ffebee;
+  border-left-color: #d32f2f;
+}
 /* Reduce top margin for first paragraph on smaller screens */
 #flashSection > p:first-of-type {
     margin-top: 0.5rem;
@@ -439,7 +527,7 @@ footer.container {
 }
 
  /* Mobile Breakpoint */
- @media (max-width: 600px) {
+@media (max-width: 600px) {
     /* Adjust container width */
     .container { width: 95%; }
     h1 { font-size: 2.8rem; }
@@ -451,6 +539,16 @@ footer.container {
     #readFirstWarning { padding: 1.5rem 1.5rem; margin-bottom: 1.5rem; }
     .card { padding: 2rem 1.5rem; margin-bottom: 1.5rem;} /* Reduce card margin */
     .column { margin-bottom: 1.5rem; } /* Reduce space between stacked columns */
+    .inline-tool-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .inline-tool-actions {
+        align-items: stretch;
+    }
+    .secondary-page-link {
+        width: 100%;
+    }
 
     /* Make connect button and status block-level for stacking */
     /* Target the specific paragraph containing button and status */
@@ -488,35 +586,6 @@ footer.container {
      /* Reduce vertical height of log area */
      .log { max-height: 120px; }
  }
-
-/* ---------- Update Mode Tabs ---------- */
-.update-mode-tabs {
-    display: flex;
-    gap: 0;
-    padding: 0 !important;
-    overflow: hidden;
-}
-.mode-tab {
-    flex: 1;
-    background: none;
-    border: none;
-    border-bottom: 3px solid transparent;
-    padding: 1.2rem 1rem;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--ucritter-light-text);
-    cursor: pointer;
-    transition: color 0.2s, border-color 0.2s;
-    font-family: var(--font-family);
-}
-.mode-tab.active {
-    color: var(--ucritter-primary);
-    border-bottom-color: var(--ucritter-primary);
-}
-.mode-tab:hover:not(.active) {
-    color: var(--ucritter-text);
-    border-bottom-color: var(--ucritter-border);
-}
 
 /* ---------- Bootloader Step Tracker ---------- */
 #bl-step-tracker {
