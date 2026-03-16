@@ -1,11 +1,12 @@
-# Version v1-11-49-86
+# Version v1-11-50-86
 
-**Source Commit:** `743298c` (Based on `743298c0e24ecee668ebaaf736a236cac22a505d` in `ucritair-firmware`)
-**Build Date:** 2026-03-03 23:10:36 CST
+**Source Commit:** `7708eb6` (Based on `7708eb63f95c9dd697ea3a9eb8cd3206622e35e7` in `ucritair-firmware`)
+**Build Date:** 2026-03-16 13:40:06 CDT
 
 ## Changes
 
-* 743298c0 Fix BLE stack overflow crash during log streaming
+* 7708eb63 Fix BLE identity for BTHome wake advertising
+* 32f0c35b Bump version to 1.11.50.86
 
 ---
-*Based on ucritair-firmware commit: 743298c0e24ecee668ebaaf736a236cac22a505d
+*Based on ucritair-firmware commit: 7708eb63f95c9dd697ea3a9eb8cd3206622e35e7
